@@ -6,7 +6,7 @@ namespace LMSupplyDepots.Tools.HuggingFace.Client;
 /// <summary>
 /// Represents the core functionality for interacting with the Hugging Face API.
 /// </summary>
-public interface IHuggingFaceClient
+public interface IHuggingFaceClient : IDisposable
 {
     /// <summary>
     /// Asynchronously searches for models based on specified criteria.

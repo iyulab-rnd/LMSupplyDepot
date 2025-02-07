@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using LMSupplyDepots.Tools.HuggingFace.Client;
+using System.Net;
+using System.Runtime.CompilerServices;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Download;
 
@@ -82,13 +84,32 @@ internal sealed class FileDownloadManager
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
+        try
+        {
+            var response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
 
-        response.EnsureSuccessStatusCode();
-        return response;
+            response.EnsureSuccessStatusCode();
+            return response;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger?.LogError(ex, "HTTP request failed: {Url}", request.RequestUri);
+            throw new HuggingFaceException(
+                $"Failed to download file: {request.RequestUri}",
+                ex.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Request failed: {Url}", request.RequestUri);
+            throw new HuggingFaceException(
+                $"Failed to download file: {request.RequestUri}",
+                HttpStatusCode.InternalServerError,
+                ex);
+        }
     }
 
     private static long? GetTotalBytes(HttpResponseMessage response, long startFrom)

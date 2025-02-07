@@ -9,7 +9,7 @@ namespace LMSupplyDepots.Tools.HuggingFace.Client;
 /// <summary>
 /// Client for interacting with the Hugging Face API.
 /// </summary>
-public sealed class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDisposable
+public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDisposable
 {
     private readonly HuggingFaceClientOptions _options;
     private readonly ILoggerFactory? _loggerFactory;
@@ -29,6 +29,30 @@ public sealed class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloade
         _loggerFactory = loggerFactory;
         _logger = loggerFactory?.CreateLogger<HuggingFaceClient>();
         _httpClient = CreateHttpClient(_options);
+
+        var downloadManagerLogger = loggerFactory?.CreateLogger<FileDownloadManager>();
+        _downloadManager = new FileDownloadManager(_httpClient, downloadManagerLogger, _options.BufferSize);
+    }
+
+    public HuggingFaceClient(
+        HuggingFaceClientOptions options,
+        HttpMessageHandler handler,
+        ILoggerFactory? loggerFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+
+        _options = options;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory?.CreateLogger<HuggingFaceClient>();
+        _httpClient = new HttpClient(handler) { Timeout = options.Timeout };
+
+        if (!string.IsNullOrWhiteSpace(options.Token))
+        {
+            _httpClient.DefaultRequestHeaders.Add(
+                HuggingFaceConstants.Headers.Authorization,
+                string.Format(HuggingFaceConstants.Headers.AuthorizationFormat, options.Token));
+        }
 
         var downloadManagerLogger = loggerFactory?.CreateLogger<FileDownloadManager>();
         _downloadManager = new FileDownloadManager(_httpClient, downloadManagerLogger, _options.BufferSize);
