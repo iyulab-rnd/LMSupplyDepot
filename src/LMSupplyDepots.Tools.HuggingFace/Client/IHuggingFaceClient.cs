@@ -11,11 +11,17 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Asynchronously searches for models based on specified criteria.
     /// </summary>
+    /// <param name="search">Optional search term</param>
+    /// <param name="filters">Optional array of filters</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <param name="sortField">Field to sort results by</param>
+    /// <param name="descending">Whether to sort in descending order</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     Task<IReadOnlyList<HuggingFaceModel>> SearchModelsAsync(
         string? search = null,
         string[]? filters = null,
         int limit = 5,
-        string sort = "downloads",
+        ModelSortField sortField = ModelSortField.Downloads,
         bool descending = true,
         CancellationToken cancellationToken = default);
 
@@ -42,5 +48,33 @@ public interface IHuggingFaceClient : IDisposable
         string filePath,
         string outputPath,
         long startFrom = 0,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously downloads all files from a repository.
+    /// </summary>
+    /// <param name="repoId">The repository ID</param>
+    /// <param name="outputDir">The directory where files will be saved</param>
+    /// <param name="useSubDir">Whether to create a subdirectory for the repository</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
+        string repoId,
+        string outputDir,
+        bool useSubDir = true,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously downloads specified files from a repository.
+    /// </summary>
+    /// <param name="repoId">The repository ID</param>
+    /// <param name="filePaths">The specific file paths to download</param>
+    /// <param name="outputDir">The directory where files will be saved</param>
+    /// <param name="useSubDir">Whether to create a subdirectory for the repository</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
+        string repoId,
+        IEnumerable<string> filePaths,
+        string outputDir,
+        bool useSubDir = true,
         CancellationToken cancellationToken = default);
 }

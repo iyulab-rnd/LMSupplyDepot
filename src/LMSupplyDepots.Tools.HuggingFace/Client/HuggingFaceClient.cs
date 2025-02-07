@@ -3,6 +3,7 @@ using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Client;
 
@@ -63,14 +64,18 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
         string? search = null,
         string[]? filters = null,
         int limit = 5,
-        string sort = "downloads",
+        ModelSortField sortField = ModelSortField.Downloads,
         bool descending = true,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         var requestUri = HuggingFaceConstants.UrlBuilder.CreateModelSearchUrl(
-            search, filters, limit, sort, descending);
+            search,
+            filters,
+            limit,
+            sortField.ToApiString(),
+            descending);
 
         try
         {
@@ -232,6 +237,26 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
             _options.ProgressUpdateInterval);
 
         return downloader.DownloadRepositoryAsync(repoId, outputDir, useSubDir, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
+    string repoId,
+    IEnumerable<string> filePaths,
+    string outputDir,
+    bool useSubDir = true,
+    CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        var repoManagerLogger = _loggerFactory?.CreateLogger<RepositoryDownloadManager>();
+        var downloader = new RepositoryDownloadManager(
+            this,
+            repoManagerLogger,
+            _options.MaxConcurrentDownloads,
+            _options.ProgressUpdateInterval);
+
+        return downloader.DownloadRepositoryFilesAsync(repoId, filePaths, outputDir, useSubDir, cancellationToken);
     }
 
     public void Dispose()

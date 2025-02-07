@@ -82,7 +82,9 @@ internal sealed class FileDownloadManager
         return request;
     }
 
-    private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage> SendRequestAsync(
+    HttpRequestMessage request,
+    CancellationToken cancellationToken)
     {
         try
         {
@@ -91,16 +93,25 @@ internal sealed class FileDownloadManager
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
 
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HuggingFaceException(
+                    "This model requires authentication. Please provide a valid API token with the necessary permissions.",
+                    HttpStatusCode.Unauthorized);
+            }
+
             response.EnsureSuccessStatusCode();
             return response;
         }
         catch (HttpRequestException ex)
         {
             _logger?.LogError(ex, "HTTP request failed: {Url}", request.RequestUri);
-            throw new HuggingFaceException(
-                $"Failed to download file: {request.RequestUri}",
-                ex.StatusCode ?? HttpStatusCode.InternalServerError,
-                ex);
+
+            var message = ex.StatusCode == HttpStatusCode.Unauthorized
+                ? "This model requires authentication. Please provide a valid API token with the necessary permissions."
+                : $"Failed to download file: {request.RequestUri}";
+
+            throw new HuggingFaceException(message, ex.StatusCode ?? HttpStatusCode.InternalServerError, ex);
         }
         catch (Exception ex)
         {

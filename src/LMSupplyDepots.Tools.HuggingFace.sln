@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMSupplyDepots.Tools.Huggin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMSupplyDepots.Tools.HuggingFace.Tests", "LMSupplyDepots.Tools.HuggingFace.Tests\LMSupplyDepots.Tools.HuggingFace.Tests.csproj", "{BF01CFC7-1105-4B82-808E-0F473095A793}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp", "LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp\LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp.csproj", "{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{BF01CFC7-1105-4B82-808E-0F473095A793}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BF01CFC7-1105-4B82-808E-0F473095A793}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BF01CFC7-1105-4B82-808E-0F473095A793}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -35,10 +35,23 @@ public sealed class RepositoryDownloadManager
     }
 
     /// <summary>
-    /// Downloads a repository with concurrent file downloads and progress tracking.
+    /// Downloads all files from a repository with concurrent downloads and progress tracking.
     /// </summary>
-    public async IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
+    public IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
         string repoId,
+        string outputDir,
+        bool useSubDir = true,
+        CancellationToken cancellationToken = default)
+    {
+        return DownloadRepositoryFilesAsync(repoId, null, outputDir, useSubDir, cancellationToken);
+    }
+
+    /// <summary>
+    /// Downloads specific files from a repository with concurrent downloads and progress tracking.
+    /// </summary>
+    public async IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
+        string repoId,
+        IEnumerable<string>? specificFiles,
         string outputDir,
         bool useSubDir = true,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -50,11 +63,13 @@ public sealed class RepositoryDownloadManager
 
         // Get repository information
         var model = await _client.FindModelByRepoIdAsync(repoId, cancellationToken);
-        var files = model.GetFilePaths();
+
+        // Get files to download
+        var files = specificFiles?.ToArray() ?? model.GetFilePaths();
 
         if (!files.Any())
         {
-            _logger?.LogWarning("No files found in repository: {RepoId}", repoId);
+            _logger?.LogWarning("No files found to download in repository: {RepoId}", repoId);
             yield break;
         }
 
@@ -65,6 +80,7 @@ public sealed class RepositoryDownloadManager
         var progress = RepoDownloadProgress.Create(files);
         var downloadProgresses = new ConcurrentDictionary<string, FileDownloadProgress>();
         var completedFiles = new ConcurrentBag<string>();
+        var failedFiles = new ConcurrentBag<(string File, Exception Error)>();
 
         // Create download tasks for each file
         using var semaphore = new SemaphoreSlim(_maxConcurrentDownloads);
@@ -79,6 +95,7 @@ public sealed class RepositoryDownloadManager
                 semaphore,
                 downloadProgresses,
                 completedFiles,
+                failedFiles,
                 cancellationToken);
 
             downloadTasks.Add(task);
@@ -87,6 +104,16 @@ public sealed class RepositoryDownloadManager
         // Monitor progress
         while (!downloadTasks.All(t => t.IsCompleted))
         {
+            // 인증 오류 발생 시 즉시 중단
+            var authError = failedFiles.FirstOrDefault(f =>
+                f.Error is HuggingFaceException hfe &&
+                hfe.StatusCode == System.Net.HttpStatusCode.Unauthorized);
+
+            if (authError != default)
+            {
+                throw authError.Error;
+            }
+
             var currentProgress = progress with
             {
                 CompletedFiles = completedFiles.ToImmutableHashSet(),
@@ -97,12 +124,17 @@ public sealed class RepositoryDownloadManager
             await Task.Delay(_progressUpdateInterval, cancellationToken);
         }
 
-        // Wait for all tasks to complete
-        await Task.WhenAll(downloadTasks);
+        // Check for any failed downloads
+        if (failedFiles.Any())
+        {
+            var firstError = failedFiles.First();
+            throw new HuggingFaceException(
+                $"Failed to download files. First error ({firstError.File}): {firstError.Error.Message}",
+                (firstError.Error as HuggingFaceException)?.StatusCode ?? System.Net.HttpStatusCode.InternalServerError,
+                firstError.Error);
+        }
 
         _logger?.LogInformation("Repository download completed: {RepoId}", repoId);
-
-        // Return final progress
         yield return progress.AsCompleted();
     }
 
@@ -113,6 +145,7 @@ public sealed class RepositoryDownloadManager
         SemaphoreSlim semaphore,
         ConcurrentDictionary<string, FileDownloadProgress> progresses,
         ConcurrentBag<string> completedFiles,
+        ConcurrentBag<(string File, Exception Error)> failedFiles,
         CancellationToken cancellationToken)
     {
         await semaphore.WaitAsync(cancellationToken);
@@ -120,6 +153,11 @@ public sealed class RepositoryDownloadManager
         try
         {
             var outputPath = Path.Combine(targetDir, filePath);
+            var outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
 
             _logger?.LogInformation("Starting file download: {FilePath}", filePath);
 
@@ -141,7 +179,7 @@ public sealed class RepositoryDownloadManager
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error downloading file: {FilePath}", filePath);
-            throw;
+            failedFiles.Add((filePath, ex));
         }
         finally
         {
