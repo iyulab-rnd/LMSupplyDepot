@@ -1,7 +1,26 @@
 ﻿using LMSupplyDepots.Tools.HuggingFace.Client;
 using LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
+using Serilog;
+
+// Configure Serilog for file logging
+var logPath = Path.Combine("logs/sample.log");
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.File(
+        logPath,
+        shared: false,
+        rollOnFileSizeLimit: false,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+// Create LoggerFactory with file logging only
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddSerilog(Log.Logger)
+           .SetMinimumLevel(LogLevel.Information);
+});
 
 Console.WriteLine("Hugging Face API Sample Console Application");
 Console.WriteLine("==========================================");
@@ -28,12 +47,6 @@ else
 {
     Console.WriteLine("No API token provided. Some operations may be limited.");
 }
-
-using var loggerFactory = LoggerFactory.Create(builder =>
-{
-    builder.AddConsole()
-           .SetMinimumLevel(LogLevel.Information);
-});
 
 using var client = new HuggingFaceClient(options, loggerFactory);
 

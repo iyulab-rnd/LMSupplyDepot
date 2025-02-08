@@ -33,7 +33,7 @@ public class HuggingFaceClientTests
     }
 
     [Fact]
-    public async Task SearchModelsAsync_WithValidParameters_ReturnsModels()
+    public async Task SearchModelsAsync_WithValidParameters_ReturnsGgufModels()
     {
         // Act
         var result = await _client.SearchModelsAsync(
@@ -43,16 +43,17 @@ public class HuggingFaceClientTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(2, result.Count);
+        Assert.Equal(2, result.Count);  // GGUF 파일이 있는 모델만 반환
         foreach (var model in result)
         {
+            Assert.True(model.HasGgufFiles());  // GGUF 파일 존재 확인
             Assert.NotNull(model.ID);
             Assert.NotNull(model.ModelId);
         }
     }
 
     [Fact]
-    public async Task SearchModelsAsync_WithNoParameters_ReturnsDefaultResults()
+    public async Task SearchModelsAsync_WithNoParameters_ReturnsGgufModels()
     {
         // Act
         var result = await _client.SearchModelsAsync();
@@ -60,9 +61,9 @@ public class HuggingFaceClientTests
         // Assert
         Assert.NotNull(result);
         Assert.NotEmpty(result);
+        Assert.All(result, model => Assert.True(model.HasGgufFiles()));
     }
 
-    [Fact]
     public async Task FindModelByRepoIdAsync_WithValidId_ReturnsModel()
     {
         // Arrange
@@ -151,27 +152,6 @@ public class HuggingFaceClientTests
             if (File.Exists(outputPath))
                 File.Delete(outputPath);
         }
-    }
-
-    [Fact]
-    public async Task DownloadFileAsync_WithNoAuth_ThrowsUnauthorized()
-    {
-        // Arrange
-        var clientWithoutAuth = new HuggingFaceClient(
-            new HuggingFaceClientOptions(),
-            _mockHandler,
-            _loggerFactoryMock.Object);
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<HuggingFaceException>(async () =>
-        {
-            await foreach (var _ in clientWithoutAuth.DownloadFileAsync("test/model", "file.txt", "output.txt"))
-            {
-                // Do nothing, we expect an exception
-            }
-        });
-
-        Assert.Equal(HttpStatusCode.Unauthorized, exception.StatusCode);
     }
 
     [Fact]

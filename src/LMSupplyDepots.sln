@@ -9,6 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMSupplyDepots.Tools.Huggin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp", "LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp\LMSupplyDepots.Tools.HuggingFace.SampleConsoleApp.csproj", "{ADBAC897-F9AF-414B-B5B4-B0AB86A7F3F2}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AE2D4B50-FF68-422F-B519-6B0618A26E73}"
+	ProjectSection(SolutionItems) = preProject
+		..\README.md = ..\README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

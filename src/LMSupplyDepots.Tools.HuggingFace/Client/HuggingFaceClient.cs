@@ -70,31 +70,38 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
     {
         ThrowIfDisposed();
 
-        var requestUri = HuggingFaceConstants.UrlBuilder.CreateModelSearchUrl(
-            search,
-            filters,
-            limit,
-            sortField.ToApiString(),
-            descending);
-
         try
         {
-            _logger?.LogInformation("Searching models with parameters: search={Search}, filters={Filters}, limit={Limit}",
-                search, filters, limit);
+            // First attempt: Search with increased limit and filter for GGUF files
+            var initialLimit = limit * 3;
+            var models = await SearchModelsInternalAsync(search, filters, initialLimit, sortField, descending, cancellationToken);
 
-            return await RetryHandler.ExecuteWithRetryAsync(
-                async () =>
-                {
-                    var models = await _httpClient.GetFromJsonAsync<HuggingFaceModel[]>(
-                        requestUri, cancellationToken) ?? Array.Empty<HuggingFaceModel>();
+            // If we don't have enough results, try searching with "-GGUF" suffix
+            if (models.Count < limit)
+            {
+                _logger?.LogInformation("Initial search found only {Count} GGUF models, attempting suffix search", models.Count);
 
-                    _logger?.LogInformation("Found {Count} models", models.Length);
-                    return models;
-                },
-                _options.MaxRetries,
-                _options.RetryDelayMilliseconds,
-                _logger,
-                cancellationToken);
+                var remainingCount = limit - models.Count;
+                var suffixSearch = search != null ? $"{search} -GGUF" : "-GGUF";
+                var additionalModels = await SearchModelsInternalAsync(suffixSearch, filters, remainingCount * 3, sortField, descending, cancellationToken);
+
+                // Combine results, remove duplicates, and sort according to the specified sort field
+                models = models
+                    .Concat(additionalModels)
+                    .DistinctBy(m => m.ID)
+                    .OrderBy(m => sortField switch
+                    {
+                        ModelSortField.Downloads => descending ? -m.Downloads : m.Downloads,
+                        ModelSortField.Likes => descending ? -m.Likes : m.Likes,
+                        ModelSortField.CreatedAt => descending ? m.CreatedAt.Ticks * -1 : m.CreatedAt.Ticks,
+                        ModelSortField.LastModified => descending ? m.LastModified.Ticks * -1 : m.LastModified.Ticks,
+                        _ => throw new ArgumentException($"Unsupported sort field: {sortField}")
+                    })
+                    .Take(limit)
+                    .ToList();
+            }
+
+            return models;
         }
         catch (Exception ex)
         {
@@ -104,10 +111,50 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
         }
     }
 
+    private async Task<List<HuggingFaceModel>> SearchModelsInternalAsync(
+        string? search,
+        string[]? filters,
+        int limit,
+        ModelSortField sortField,
+        bool descending,
+        CancellationToken cancellationToken)
+    {
+        var requestUri = HuggingFaceConstants.UrlBuilder.CreateModelSearchUrl(
+            search,
+            filters,
+            limit,
+            sortField.ToApiString(),
+            descending);
+
+        _logger?.LogInformation("Searching models with parameters: search={Search}, filters={Filters}, limit={Limit}",
+            search, filters, limit);
+
+        return await RetryHandler.ExecuteWithRetryAsync(
+            async () =>
+            {
+                var allModels = await _httpClient.GetFromJsonAsync<HuggingFaceModel[]>(
+                    requestUri, cancellationToken) ?? Array.Empty<HuggingFaceModel>();
+
+                // Filter models to include those with GGUF files
+                var ggufModels = allModels
+                    .Where(model => model.HasGgufFiles() || model.ID.EndsWith("-GGUF", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                _logger?.LogInformation("Found {Count} GGUF models from {TotalCount} total models",
+                    ggufModels.Count, allModels.Length);
+
+                return ggufModels;
+            },
+            _options.MaxRetries,
+            _options.RetryDelayMilliseconds,
+            _logger,
+            cancellationToken);
+    }
+
     /// <inheritdoc/>
     public async Task<HuggingFaceModel> FindModelByRepoIdAsync(
-        string repoId,
-        CancellationToken cancellationToken = default)
+            string repoId,
+            CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(repoId);
@@ -121,10 +168,12 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
             return await RetryHandler.ExecuteWithRetryAsync(
                 async () =>
                 {
-                    var model = await _httpClient.GetFromJsonAsync<HuggingFaceModel>(requestUri, cancellationToken);
+                    var model = await _httpClient.GetFromJsonAsync<HuggingFaceModel>(
+                        requestUri, cancellationToken);
                     if (model == null)
                     {
-                        throw new HuggingFaceException($"Model with repository ID '{repoId}' was not found.",
+                        throw new HuggingFaceException(
+                            $"Model with repository ID '{repoId}' was not found.",
                             HttpStatusCode.NotFound);
                     }
                     return model;
@@ -136,14 +185,17 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            throw new HuggingFaceException($"Model with repository ID '{repoId}' does not exist.",
+            throw new HuggingFaceException(
+                $"Model with repository ID '{repoId}' does not exist.",
                 HttpStatusCode.NotFound, ex);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error finding model by repository ID: {RepoId}", repoId);
-            throw new HuggingFaceException($"Failed to find model with repository ID '{repoId}'",
-                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError, ex);
+            throw new HuggingFaceException(
+                $"Failed to find model with repository ID '{repoId}'",
+                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
         }
     }
 
@@ -241,11 +293,11 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
 
     /// <inheritdoc/>
     public IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
-    string repoId,
-    IEnumerable<string> filePaths,
-    string outputDir,
-    bool useSubDir = true,
-    CancellationToken cancellationToken = default)
+        string repoId,
+        IEnumerable<string> filePaths,
+        string outputDir,
+        bool useSubDir = true,
+        CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 

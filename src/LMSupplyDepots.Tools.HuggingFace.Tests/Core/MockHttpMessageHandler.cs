@@ -4,19 +4,20 @@ using System.Text.Json;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Tests.Core;
 
-// Mock HTTP handler for testing
 public class MockHttpMessageHandler : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
-   HttpRequestMessage request,
-   CancellationToken cancellationToken)
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
     {
-        // 기본 인증 체크
+        // 기본 인증 체크 - 모든 요청에 대해 체크
         var hasAuth = request.Headers.Contains("Authorization");
         if (!hasAuth)
         {
-            var unauthorizedResponse = new HttpResponseMessage(HttpStatusCode.Unauthorized);
-            return Task.FromResult(unauthorizedResponse);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent("Authentication required")
+            });
         }
 
         // 특정 모델 조회
@@ -34,10 +35,13 @@ public class MockHttpMessageHandler : HttpMessageHandler
             var encodedId = request.RequestUri.PathAndQuery.Split("/models/")[1];
             var decodedId = Uri.UnescapeDataString(encodedId);
 
-            var model = CreateMockModel(decodedId);
+            var model = CreateMockModel(decodedId, true);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(JsonSerializer.Serialize(model), System.Text.Encoding.UTF8, "application/json")
+                Content = new StringContent(
+                    JsonSerializer.Serialize(model),
+                    System.Text.Encoding.UTF8,
+                    "application/json")
             };
             return Task.FromResult(response);
         }
@@ -47,18 +51,21 @@ public class MockHttpMessageHandler : HttpMessageHandler
         {
             var models = new[]
             {
-           CreateMockModel("test-model-1"),
-           CreateMockModel("test-model-2")
-       };
+                CreateMockModel("test-model-1", true),  // GGUF 파일 포함
+                CreateMockModel("test-model-2", true),  // GGUF 파일 포함
+                CreateMockModel("test-model-3", false)  // GGUF 파일 미포함
+            };
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(JsonSerializer.Serialize(models), System.Text.Encoding.UTF8, "application/json")
+                Content = new StringContent(
+                    JsonSerializer.Serialize(models),
+                    System.Text.Encoding.UTF8,
+                    "application/json")
             };
             return Task.FromResult(response);
         }
 
         // 파일 다운로드
-        // MockHttpMessageHandler.cs의 수정된 부분
         if (request.RequestUri.PathAndQuery.Contains("resolve/main/"))
         {
             // 존재하지 않는 파일 경로에 대해 404 반환
@@ -83,7 +90,10 @@ public class MockHttpMessageHandler : HttpMessageHandler
             {
                 var response = new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new StringContent("mock-file-content", System.Text.Encoding.UTF8, "application/octet-stream")
+                    Content = new StringContent(
+                        "mock-file-content",
+                        System.Text.Encoding.UTF8,
+                        "application/octet-stream")
                 };
                 return Task.FromResult(response);
             }
@@ -93,8 +103,19 @@ public class MockHttpMessageHandler : HttpMessageHandler
         return Task.FromResult(defaultResponse);
     }
 
-    private static HuggingFaceModel CreateMockModel(string id)
+    private static HuggingFaceModel CreateMockModel(string id, bool includeGguf = false)
     {
+        var siblings = new List<ModelResource>
+        {
+            new() { Rfilename = "config.json" },
+            new() { Rfilename = "model.bin" }
+        };
+
+        if (includeGguf)
+        {
+            siblings.Add(new ModelResource { Rfilename = "model.gguf" });
+        }
+
         return new HuggingFaceModel
         {
             ID = id,
@@ -104,11 +125,8 @@ public class MockHttpMessageHandler : HttpMessageHandler
             Likes = 100,
             CreatedAt = DateTime.UtcNow.AddDays(-10),
             LastModified = DateTime.UtcNow,
-            Siblings = new[]
-            {
-                new ModelResource { Rfilename = "config.json" },
-                new ModelResource { Rfilename = "model.bin" }
-            }
+            Siblings = siblings.ToArray()
         };
     }
+
 }
