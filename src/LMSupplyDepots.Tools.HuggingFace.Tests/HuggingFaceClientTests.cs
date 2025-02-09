@@ -1,4 +1,5 @@
 ﻿using LMSupplyDepots.Tools.HuggingFace.Client;
+using LMSupplyDepots.Tools.HuggingFace.Common;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using LMSupplyDepots.Tools.HuggingFace.Tests.Core;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ public class HuggingFaceClientTests
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly HuggingFaceClientOptions _options;
     private readonly MockHttpMessageHandler _mockHandler;
-    private readonly HuggingFaceClient _client;  // IHuggingFaceClient 대신 구체 타입
+    private readonly HuggingFaceClient _client;
 
     public HuggingFaceClientTests()
     {
@@ -33,30 +34,49 @@ public class HuggingFaceClientTests
     }
 
     [Fact]
-    public async Task SearchModelsAsync_WithValidParameters_ReturnsGgufModels()
+    public async Task SearchTextGenerationModelsAsync_WithValidParameters_ReturnsGgufModels()
     {
         // Act
-        var result = await _client.SearchModelsAsync(
+        var result = await _client.SearchTextGenerationModelsAsync(
             search: "test",
             filters: ["test-filter"],
             limit: 2);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(2, result.Count);  // GGUF 파일이 있는 모델만 반환
+        Assert.Equal(2, result.Count);  // text-generation 태그가 있는 모델만 반환
         foreach (var model in result)
         {
-            Assert.True(model.HasGgufFiles());  // GGUF 파일 존재 확인
-            Assert.NotNull(model.ID);
-            Assert.NotNull(model.ModelId);
+            Assert.True(model.HasGgufFiles());
+            Assert.True(ModelTagValidation.IsTextGenerationModel(model));
         }
     }
 
     [Fact]
-    public async Task SearchModelsAsync_WithNoParameters_ReturnsGgufModels()
+    public async Task SearchEmbeddingModelsAsync_WithValidParameters_ReturnsGgufModels()
     {
         // Act
-        var result = await _client.SearchModelsAsync();
+        var result = await _client.SearchEmbeddingModelsAsync(
+            search: "test",
+            filters: ["test-filter"],
+            limit: 2);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEmpty(result);
+        foreach (var model in result)
+        {
+            Assert.True(model.HasGgufFiles());
+            Assert.True(ModelTagValidation.IsEmbeddingModel(model));
+            Assert.Contains("sentence-similarity", model.Tags);
+        }
+    }
+
+    [Fact]
+    public async Task SearchTextGenerationModelsAsync_WithNoParameters_ReturnsGgufModels()
+    {
+        // Act
+        var result = await _client.SearchTextGenerationModelsAsync();
 
         // Assert
         Assert.NotNull(result);
@@ -64,6 +84,7 @@ public class HuggingFaceClientTests
         Assert.All(result, model => Assert.True(model.HasGgufFiles()));
     }
 
+    [Fact]
     public async Task FindModelByRepoIdAsync_WithValidId_ReturnsModel()
     {
         // Arrange
@@ -74,8 +95,9 @@ public class HuggingFaceClientTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(repoId, result.ID);
-        Assert.NotNull(result.Siblings);
+        Assert.Equal(repoId, result.Id);
+        var filePaths = result.GetFilePaths();
+        Assert.NotEmpty(filePaths);
     }
 
     [Fact]
@@ -163,4 +185,5 @@ public class HuggingFaceClientTests
 
         // Assert - no exception thrown
     }
+
 }

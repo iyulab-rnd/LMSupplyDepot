@@ -3,7 +3,6 @@ using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using System.Net;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Client;
 
@@ -60,7 +59,7 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<HuggingFaceModel>> SearchModelsAsync(
+    public Task<IReadOnlyList<HuggingFaceModel>> SearchTextGenerationModelsAsync(
         string? search = null,
         string[]? filters = null,
         int limit = 5,
@@ -68,87 +67,102 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
         bool descending = true,
         CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
-
-        try
-        {
-            // First attempt: Search with increased limit and filter for GGUF files
-            var initialLimit = limit * 3;
-            var models = await SearchModelsInternalAsync(search, filters, initialLimit, sortField, descending, cancellationToken);
-
-            // If we don't have enough results, try searching with "-GGUF" suffix
-            if (models.Count < limit)
-            {
-                _logger?.LogInformation("Initial search found only {Count} GGUF models, attempting suffix search", models.Count);
-
-                var remainingCount = limit - models.Count;
-                var suffixSearch = search != null ? $"{search} -GGUF" : "-GGUF";
-                var additionalModels = await SearchModelsInternalAsync(suffixSearch, filters, remainingCount * 3, sortField, descending, cancellationToken);
-
-                // Combine results, remove duplicates, and sort according to the specified sort field
-                models = models
-                    .Concat(additionalModels)
-                    .DistinctBy(m => m.ID)
-                    .OrderBy(m => sortField switch
-                    {
-                        ModelSortField.Downloads => descending ? -m.Downloads : m.Downloads,
-                        ModelSortField.Likes => descending ? -m.Likes : m.Likes,
-                        ModelSortField.CreatedAt => descending ? m.CreatedAt.Ticks * -1 : m.CreatedAt.Ticks,
-                        ModelSortField.LastModified => descending ? m.LastModified.Ticks * -1 : m.LastModified.Ticks,
-                        _ => throw new ArgumentException($"Unsupported sort field: {sortField}")
-                    })
-                    .Take(limit)
-                    .ToList();
-            }
-
-            return models;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error searching models");
-            throw new HuggingFaceException("Failed to search models",
-                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError, ex);
-        }
+        return SearchModelsInternalAsync(
+            search,
+            ModelFilters.TextGenerationFilters,
+            filters,
+            limit,
+            sortField,
+            descending,
+            cancellationToken);
     }
 
-    private async Task<List<HuggingFaceModel>> SearchModelsInternalAsync(
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<HuggingFaceModel>> SearchEmbeddingModelsAsync(
+        string? search = null,
+        string[]? filters = null,
+        int limit = 5,
+        ModelSortField sortField = ModelSortField.Downloads,
+        bool descending = true,
+        CancellationToken cancellationToken = default)
+    {
+        return SearchModelsInternalAsync(
+            search,
+            ModelFilters.EmbeddingFilters,
+            filters,
+            limit,
+            sortField,
+            descending,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<HuggingFaceModel>> SearchModelsInternalAsync(
         string? search,
-        string[]? filters,
+        IEnumerable<string> requiredFilters,
+        string[]? additionalFilters,
         int limit,
         ModelSortField sortField,
         bool descending,
         CancellationToken cancellationToken)
     {
-        var requestUri = HuggingFaceConstants.UrlBuilder.CreateModelSearchUrl(
-            search,
-            filters,
-            limit,
-            sortField.ToApiString(),
-            descending);
+        ThrowIfDisposed();
 
-        _logger?.LogInformation("Searching models with parameters: search={Search}, filters={Filters}, limit={Limit}",
-            search, filters, limit);
+        try
+        {
+            var allFilters = (additionalFilters ?? [])
+                .Concat(requiredFilters)
+                .ToArray();
 
-        return await RetryHandler.ExecuteWithRetryAsync(
-            async () =>
-            {
-                var allModels = await _httpClient.GetFromJsonAsync<HuggingFaceModel[]>(
-                    requestUri, cancellationToken) ?? Array.Empty<HuggingFaceModel>();
+            var requestUri = HuggingFaceConstants.UrlBuilder.CreateModelSearchUrl(
+                search,
+                allFilters,
+                limit,
+                sortField.ToApiString(),
+                descending);
 
-                // Filter models to include those with GGUF files
-                var ggufModels = allModels
-                    .Where(model => model.HasGgufFiles() || model.ID.EndsWith("-GGUF", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+            _logger?.LogInformation(
+                "Searching models with URL: {RequestUri}\nParameters: search={Search}, filters={Filters}, limit={Limit}",
+                requestUri, search, string.Join(", ", allFilters), limit);
 
-                _logger?.LogInformation("Found {Count} GGUF models from {TotalCount} total models",
-                    ggufModels.Count, allModels.Length);
+            return await RetryHandler.ExecuteWithRetryAsync(
+                async () =>
+                {
+                    var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                    var content = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                return ggufModels;
-            },
-            _options.MaxRetries,
-            _options.RetryDelayMilliseconds,
-            _logger,
-            cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger?.LogError(
+                            "API request failed: {StatusCode}\nResponse: {Content}",
+                            response.StatusCode, content);
+
+                        throw new HuggingFaceException(
+                            $"API request failed with status code {response.StatusCode}",
+                            response.StatusCode);
+                    }
+
+                    _logger?.LogDebug("API Response: {Content}", content);
+
+                    var models = await response.Content.ReadFromJsonAsync<HuggingFaceModel[]>(
+                        cancellationToken: cancellationToken) ?? Array.Empty<HuggingFaceModel>();
+
+                    _logger?.LogInformation("Found {Count} models matching criteria", models.Length);
+
+                    return models;
+                },
+                _options.MaxRetries,
+                _options.RetryDelayMilliseconds,
+                _logger,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error searching models");
+            throw new HuggingFaceException(
+                "Failed to search models",
+                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
+        }
     }
 
     /// <inheritdoc/>

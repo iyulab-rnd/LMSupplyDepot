@@ -195,7 +195,7 @@ internal sealed class FileDownloadManager
         {
             TotalBytesRead = initialBytes;
             _startTime = startTime;
-            _recentChunks = new List<(DateTime, long)>();
+            _recentChunks = [];
         }
 
         public (long TotalBytesRead, double DownloadSpeed) UpdateProgress(int newBytes)

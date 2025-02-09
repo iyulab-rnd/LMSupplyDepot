@@ -2,9 +2,6 @@
 
 namespace LMSupplyDepots.Tools.HuggingFace.Common;
 
-/// <summary>
-/// Contains constants and URL generation methods for the Hugging Face API.
-/// </summary>
 public static class HuggingFaceConstants
 {
     private const string Host = "huggingface.co";
@@ -25,6 +22,7 @@ public static class HuggingFaceConstants
         public const string Download = "download";
         public const string Search = "search";
         public const string Filter = "filter";
+        public const string Author = "author";
         public const string Limit = "limit";
         public const string Sort = "sort";
         public const string Direction = "direction";
@@ -53,7 +51,9 @@ public static class HuggingFaceConstants
                 query[QueryParams.Search] = search;
 
             if (filters?.Length > 0)
+            {
                 query[QueryParams.Filter] = string.Join(",", filters);
+            }
 
             if (limit.HasValue)
                 query[QueryParams.Limit] = limit.ToString();

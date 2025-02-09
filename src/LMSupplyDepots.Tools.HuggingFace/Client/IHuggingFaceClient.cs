@@ -9,15 +9,32 @@ namespace LMSupplyDepots.Tools.HuggingFace.Client;
 public interface IHuggingFaceClient : IDisposable
 {
     /// <summary>
-    /// Asynchronously searches for models based on specified criteria.
+    /// Asynchronously searches for text generation models.
     /// </summary>
     /// <param name="search">Optional search term</param>
-    /// <param name="filters">Optional array of filters</param>
+    /// <param name="filters">Optional additional filters to apply</param>
     /// <param name="limit">Maximum number of results to return</param>
     /// <param name="sortField">Field to sort results by</param>
     /// <param name="descending">Whether to sort in descending order</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task<IReadOnlyList<HuggingFaceModel>> SearchModelsAsync(
+    Task<IReadOnlyList<HuggingFaceModel>> SearchTextGenerationModelsAsync(
+        string? search = null,
+        string[]? filters = null,
+        int limit = 5,
+        ModelSortField sortField = ModelSortField.Downloads,
+        bool descending = true,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously searches for embedding models.
+    /// </summary>
+    /// <param name="search">Optional search term</param>
+    /// <param name="filters">Optional additional filters to apply</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <param name="sortField">Field to sort results by</param>
+    /// <param name="descending">Whether to sort in descending order</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<IReadOnlyList<HuggingFaceModel>> SearchEmbeddingModelsAsync(
         string? search = null,
         string[]? filters = null,
         int limit = 5,

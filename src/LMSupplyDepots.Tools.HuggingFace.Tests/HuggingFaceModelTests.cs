@@ -1,4 +1,6 @@
-﻿using LMSupplyDepots.Tools.HuggingFace.Models;
+﻿using LMSupplyDepots.Tools.HuggingFace.Common;
+using LMSupplyDepots.Tools.HuggingFace.Models;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Tests;
@@ -9,18 +11,19 @@ public class HuggingFaceModelTests
     public void GetFilePaths_NoPattern_ReturnsAllFiles()
     {
         // Arrange
-        var model = new HuggingFaceModel
-        {
-            Siblings = new[]
-            {
-                new ModelResource { Rfilename = "config.json" },
-                new ModelResource { Rfilename = "model.bin" },
-                new ModelResource { Rfilename = "vocab.txt" }
-            }
-        };
+        var jsonString = @"{
+            ""_id"": ""test"",
+            ""siblings"": [
+                { ""rfilename"": ""config.json"" },
+                { ""rfilename"": ""model.bin"" },
+                { ""rfilename"": ""vocab.txt"" }
+            ]
+        }";
+
+        var model = JsonSerializer.Deserialize<HuggingFaceModel>(jsonString);
 
         // Act
-        var result = model.GetFilePaths();
+        var result = model!.GetFilePaths();
 
         // Assert
         Assert.Equal(3, result.Length);
@@ -33,22 +36,59 @@ public class HuggingFaceModelTests
     public void GetFilePaths_WithPattern_ReturnsMatchingFiles()
     {
         // Arrange
-        var model = new HuggingFaceModel
-        {
-            Siblings = new[]
-            {
-                new ModelResource { Rfilename = "config.json" },
-                new ModelResource { Rfilename = "model.bin" },
-                new ModelResource { Rfilename = "vocab.txt" }
-            }
-        };
+        var jsonString = @"{
+            ""_id"": ""test"",
+            ""siblings"": [
+                { ""rfilename"": ""config.json"" },
+                { ""rfilename"": ""model.bin"" },
+                { ""rfilename"": ""vocab.txt"" }
+            ]
+        }";
+
+        var model = JsonSerializer.Deserialize<HuggingFaceModel>(jsonString);
         var pattern = new Regex(@"\.json$");
 
         // Act
-        var result = model.GetFilePaths(pattern);
+        var result = model!.GetFilePaths(pattern);
 
         // Assert
         Assert.Single(result);
         Assert.Equal("config.json", result[0]);
+    }
+
+    [Fact]
+    public void IsTextGenerationModel_WithValidTags_ReturnsExpectedResult()
+    {
+        // Arrange
+        var jsonString = @"{
+            ""_id"": ""test"",
+            ""tags"": [""text-generation"", ""gguf""]
+        }";
+
+        var model = JsonSerializer.Deserialize<HuggingFaceModel>(jsonString);
+
+        // Act
+        var result = ModelTagValidation.IsTextGenerationModel(model!);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsEmbeddingModel_WithValidTags_ReturnsExpectedResult()
+    {
+        // Arrange
+        var jsonString = @"{
+            ""_id"": ""test"",
+            ""tags"": [""sentence-similarity"", ""gguf""]
+        }";
+
+        var model = JsonSerializer.Deserialize<HuggingFaceModel>(jsonString);
+
+        // Act
+        var result = ModelTagValidation.IsEmbeddingModel(model!);
+
+        // Assert
+        Assert.True(result);
     }
 }

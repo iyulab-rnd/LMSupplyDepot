@@ -1,5 +1,7 @@
 ﻿using LMSupplyDepots.Tools.HuggingFace.Models;
+using System.Net.Http.Headers;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Tests.Core;
@@ -10,7 +12,7 @@ public class MockHttpMessageHandler : HttpMessageHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        // 기본 인증 체크 - 모든 요청에 대해 체크
+        // 기본 인증 체크
         var hasAuth = request.Headers.Contains("Authorization");
         if (!hasAuth)
         {
@@ -20,113 +22,125 @@ public class MockHttpMessageHandler : HttpMessageHandler
             });
         }
 
-        // 특정 모델 조회
-        if (request.RequestUri!.PathAndQuery.Contains("/models/"))
+        // 모델 상세 조회
+        if (request.RequestUri!.PathAndQuery.Contains("/api/models/"))
         {
-            if (request.RequestUri.PathAndQuery.Contains("nonexistent"))
+            // URL 디코딩하여 실제 모델 ID 추출
+            var encodedModelId = request.RequestUri.PathAndQuery.Split("/api/models/")[1];
+            var modelId = Uri.UnescapeDataString(encodedModelId);
+
+            if (modelId.Contains("nonexistent"))
             {
-                var notFoundResponse = new HttpResponseMessage(HttpStatusCode.NotFound)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
                 {
                     Content = new StringContent("Model not found")
-                };
-                return Task.FromResult(notFoundResponse);
+                });
             }
 
-            var encodedId = request.RequestUri.PathAndQuery.Split("/models/")[1];
-            var decodedId = Uri.UnescapeDataString(encodedId);
-
-            var model = CreateMockModel(decodedId, true);
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            var model = CreateMockModel(modelId, true, isTextGeneration: true);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
                     JsonSerializer.Serialize(model),
-                    System.Text.Encoding.UTF8,
+                    Encoding.UTF8,
                     "application/json")
-            };
-            return Task.FromResult(response);
+            });
         }
 
-        // 모델 검색
+        // 모델 목록 조회
         if (request.RequestUri.PathAndQuery.Contains("/api/models"))
         {
-            var models = new[]
+            var queryParams = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
+            var filters = (queryParams["filter"] ?? "").Split(',');
+            var isTextGenerationRequest = filters.Contains("text-generation");
+            var isEmbeddingRequest = filters.Contains("sentence-similarity");
+
+            var allModels = new List<HuggingFaceModel>
             {
-                CreateMockModel("test-model-1", true),  // GGUF 파일 포함
-                CreateMockModel("test-model-2", true),  // GGUF 파일 포함
-                CreateMockModel("test-model-3", false)  // GGUF 파일 미포함
+                CreateMockModel("model1", true, isTextGeneration: true),
+                CreateMockModel("model2", true, isTextGeneration: true),
+                CreateMockModel("embed1", true, isTextGeneration: false)
             };
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+
+            var filteredModels = allModels.Where(m =>
+                (isTextGenerationRequest && m.Tags.Contains("text-generation")) ||
+                (isEmbeddingRequest && m.Tags.Contains("sentence-similarity")))
+                .ToList();
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
-                    JsonSerializer.Serialize(models),
-                    System.Text.Encoding.UTF8,
+                    JsonSerializer.Serialize(filteredModels),
+                    Encoding.UTF8,
                     "application/json")
-            };
-            return Task.FromResult(response);
+            });
         }
 
-        // 파일 다운로드
-        if (request.RequestUri.PathAndQuery.Contains("resolve/main/"))
+        // 파일 다운로드 또는 정보 조회
+        if (request.RequestUri.PathAndQuery.Contains("/resolve/main/"))
         {
-            // 존재하지 않는 파일 경로에 대해 404 반환
             if (request.RequestUri.PathAndQuery.Contains("nonexistent"))
             {
-                var notFoundResponse = new HttpResponseMessage(HttpStatusCode.NotFound)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
                 {
                     Content = new StringContent("File not found")
-                };
-                return Task.FromResult(notFoundResponse);
+                });
             }
 
             if (request.Method == HttpMethod.Head)
             {
                 var response = new HttpResponseMessage(HttpStatusCode.OK);
-                response.Content = new StringContent("");
-                response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                response.Content = new ByteArrayContent(Array.Empty<byte>());
+                response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 response.Content.Headers.ContentLength = 1024;
+                response.Content.Headers.LastModified = DateTimeOffset.UtcNow;
                 return Task.FromResult(response);
             }
-            else
+
+            var content = Encoding.UTF8.GetBytes("mock file content");
+            var downloadResponse = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                var response = new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(
-                        "mock-file-content",
-                        System.Text.Encoding.UTF8,
-                        "application/octet-stream")
-                };
-                return Task.FromResult(response);
-            }
+                Content = new ByteArrayContent(content)
+            };
+            downloadResponse.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            downloadResponse.Content.Headers.ContentLength = content.Length;
+            downloadResponse.Content.Headers.LastModified = DateTimeOffset.UtcNow;
+
+            return Task.FromResult(downloadResponse);
         }
 
-        var defaultResponse = new HttpResponseMessage(HttpStatusCode.NotFound);
-        return Task.FromResult(defaultResponse);
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
     }
 
-    private static HuggingFaceModel CreateMockModel(string id, bool includeGguf = false)
+    private static HuggingFaceModel CreateMockModel(string id, bool includeGguf, bool isTextGeneration)
     {
-        var siblings = new List<ModelResource>
+        var tags = new List<string> { "gguf" };
+        if (isTextGeneration)
         {
-            new() { Rfilename = "config.json" },
-            new() { Rfilename = "model.bin" }
-        };
-
-        if (includeGguf)
+            tags.Add("text-generation");
+        }
+        else
         {
-            siblings.Add(new ModelResource { Rfilename = "model.gguf" });
+            tags.Add("sentence-similarity");
         }
 
-        return new HuggingFaceModel
-        {
-            ID = id,
-            ModelId = id,
-            Author = "test-author",
-            Downloads = 1000,
-            Likes = 100,
-            CreatedAt = DateTime.UtcNow.AddDays(-10),
-            LastModified = DateTime.UtcNow,
-            Siblings = siblings.ToArray()
-        };
-    }
+        var jsonString = $@"{{
+            ""_id"": ""{id}"",
+            ""modelId"": ""{id}"",
+            ""author"": ""test-author"",
+            ""downloads"": 1000,
+            ""likes"": 100,
+            ""lastModified"": ""{DateTime.UtcNow:o}"",
+            ""createdAt"": ""{DateTime.UtcNow.AddDays(-10):o}"",
+            ""private"": false,
+            ""tags"": {JsonSerializer.Serialize(tags)},
+            ""siblings"": [
+                {{ ""rfilename"": ""config.json"" }},
+                {{ ""rfilename"": ""model.bin"" }}
+                {(includeGguf ? @", { ""rfilename"": ""model.gguf"" }" : "")}
+            ]
+        }}";
 
+        return JsonSerializer.Deserialize<HuggingFaceModel>(jsonString) ?? new HuggingFaceModel();
+    }
 }

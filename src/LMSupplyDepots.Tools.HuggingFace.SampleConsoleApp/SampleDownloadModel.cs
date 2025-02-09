@@ -39,7 +39,7 @@ internal class SampleDownloadModel
         try
         {
             var model = await client.FindModelByRepoIdAsync(modelId);
-            Console.WriteLine($"\nFound model: {model.ID}");
+            Console.WriteLine($"\nFound model: {model.ModelId}");
 
             // Get list of GGUF files with their sizes
             var ggufFiles = model.GetGgufModelPaths();
