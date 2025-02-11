@@ -94,4 +94,8 @@ public interface IHuggingFaceClient : IDisposable
         string outputDir,
         bool useSubDir = true,
         CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, long>> GetRepositoryFileSizesAsync(
+        string repoId,
+        CancellationToken cancellationToken = default);
 }

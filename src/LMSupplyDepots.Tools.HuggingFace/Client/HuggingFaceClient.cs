@@ -3,6 +3,7 @@ using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Client;
 
@@ -323,6 +324,67 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
             _options.ProgressUpdateInterval);
 
         return downloader.DownloadRepositoryFilesAsync(repoId, filePaths, outputDir, useSubDir, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets file sizes for all files in a repository.
+    /// </summary>
+    /// <param name="repoId">Repository ID (e.g. "unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping file paths to their sizes</returns>
+    public async Task<Dictionary<string, long>> GetRepositoryFileSizesAsync(
+        string repoId,
+        CancellationToken cancellationToken = default)
+    {
+        var requestUri = $"https://huggingface.co/api/models/{Uri.EscapeDataString(repoId)}/tree/main";
+
+        try
+        {
+            return await RetryHandler.ExecuteWithRetryAsync(
+                async () =>
+                {
+                    using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var items = await response.Content.ReadFromJsonAsync<List<TreeItem>>(
+                        cancellationToken: cancellationToken) ?? [];
+
+                    return items.ToDictionary(
+                        item => item.Path,
+                        item => item.Lfs?.Size ?? item.Size,
+                        StringComparer.OrdinalIgnoreCase);
+                },
+                _options.MaxRetries,
+                _options.RetryDelayMilliseconds,
+                _logger,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to get repository tree for '{RepoId}'", repoId);
+            throw new HuggingFaceException(
+                $"Failed to get repository tree for '{repoId}'",
+                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
+        }
+    }
+
+    private class TreeItem
+    {
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = "";
+
+        [JsonPropertyName("size")]
+        public long Size { get; set; }
+
+        [JsonPropertyName("lfs")]
+        public LfsInfo? Lfs { get; set; }
+
+        public class LfsInfo
+        {
+            [JsonPropertyName("size")]
+            public long Size { get; set; }
+        }
     }
 
     public void Dispose()
