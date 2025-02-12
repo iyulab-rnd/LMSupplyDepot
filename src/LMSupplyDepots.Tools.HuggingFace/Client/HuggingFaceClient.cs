@@ -271,23 +271,6 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
     }
 
     /// <inheritdoc/>
-    public IAsyncEnumerable<FileDownloadProgress> DownloadFileAsync(
-        string repoId,
-        string filePath,
-        string outputPath,
-        long startFrom = 0,
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(repoId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-
-        var requestUri = HuggingFaceConstants.UrlBuilder.CreateFileUrl(repoId, filePath);
-        return _downloadManager.DownloadFileAsync(requestUri, outputPath, startFrom, cancellationToken);
-    }
-
-    /// <inheritdoc/>
     public IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
         string repoId,
         string outputDir,
@@ -366,6 +349,47 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
                 $"Failed to get repository tree for '{repoId}'",
                 (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
                 ex);
+        }
+    }
+
+    public async Task<FileDownloadResult> DownloadFileWithResultAsync(
+        string repoId,
+        string filePath,
+        string outputPath,
+        long startFrom = 0,
+        IProgress<FileDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var requestUri = HuggingFaceConstants.UrlBuilder.CreateFileUrl(repoId, filePath);
+        return await _downloadManager.DownloadWithResultAsync(
+            requestUri,
+            outputPath,
+            startFrom,
+            progress,
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public string? GetDownloadUrl(string repoId, string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(repoId) || string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return HuggingFaceConstants.UrlBuilder.CreateFileUrl(repoId, filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error creating download URL for {RepoId}/{FilePath}", repoId, filePath);
+            return null;
         }
     }
 

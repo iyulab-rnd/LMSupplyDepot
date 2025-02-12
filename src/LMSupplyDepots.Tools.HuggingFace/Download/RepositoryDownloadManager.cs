@@ -161,10 +161,9 @@ public sealed class RepositoryDownloadManager
 
             _logger?.LogInformation("Starting file download: {FilePath}", filePath);
 
-            await foreach (var progress in _client.DownloadFileAsync(
-                repoId, filePath, outputPath, cancellationToken: cancellationToken))
+            var progress = new Progress<FileDownloadProgress>(p =>
             {
-                if (progress.IsCompleted)
+                if (p.IsCompleted)
                 {
                     completedFiles.Add(filePath);
                     progresses.TryRemove(filePath, out _);
@@ -172,8 +171,20 @@ public sealed class RepositoryDownloadManager
                 }
                 else
                 {
-                    progresses[filePath] = progress;
+                    progresses[filePath] = p;
                 }
+            });
+
+            var result = await _client.DownloadFileWithResultAsync(
+                repoId, filePath, outputPath,
+                progress: progress,
+                cancellationToken: cancellationToken);
+
+            if (result.IsCompleted)
+            {
+                completedFiles.Add(filePath);
+                progresses.TryRemove(filePath, out _);
+                _logger?.LogInformation("File download completed: {FilePath}", filePath);
             }
         }
         catch (Exception ex)

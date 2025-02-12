@@ -58,16 +58,6 @@ public interface IHuggingFaceClient : IDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Asynchronously downloads a file from a repository.
-    /// </summary>
-    IAsyncEnumerable<FileDownloadProgress> DownloadFileAsync(
-        string repoId,
-        string filePath,
-        string outputPath,
-        long startFrom = 0,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Asynchronously downloads all files from a repository.
     /// </summary>
     /// <param name="repoId">The repository ID</param>
@@ -98,4 +88,23 @@ public interface IHuggingFaceClient : IDisposable
     Task<Dictionary<string, long>> GetRepositoryFileSizesAsync(
         string repoId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously downloads a file from a repository, using a single operation.
+    /// </summary>
+    Task<FileDownloadResult> DownloadFileWithResultAsync(
+        string repoId,
+        string filePath,
+        string outputPath,
+        long startFrom = 0,
+        IProgress<FileDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the download URL for a specific file in a repository.
+    /// </summary>
+    /// <param name="repoId">The repository ID</param>
+    /// <param name="filePath">The file path within the repository</param>
+    /// <returns>The download URL for the file, or null if invalid parameters</returns>
+    string? GetDownloadUrl(string repoId, string filePath);
 }

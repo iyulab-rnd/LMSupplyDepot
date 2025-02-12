@@ -23,14 +23,12 @@ internal sealed class FileDownloadManager
         _defaultBufferSize = defaultBufferSize;
     }
 
-    /// <summary>
-    /// Downloads a file from the specified URL with progress tracking.
-    /// </summary>
-    public async IAsyncEnumerable<FileDownloadProgress> DownloadFileAsync(
+    public async Task<FileDownloadResult> DownloadWithResultAsync(
         string url,
         string outputPath,
         long startFrom = 0,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        IProgress<FileDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         _logger?.LogInformation("Starting download from {Url} to {OutputPath}", url, outputPath);
 
@@ -43,10 +41,11 @@ internal sealed class FileDownloadManager
         EnsureDirectory(outputPath);
 
         var bufferSize = DetermineOptimalBufferSize(totalBytes);
-        await using var fileStream = CreateFileStream(outputPath, startFrom, bufferSize);
-        using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-
         var progressTracker = new DownloadProgressTracker(startFrom, DateTime.UtcNow);
+
+        using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var fileStream = CreateFileStream(outputPath, startFrom, bufferSize);
+
         var buffer = new byte[bufferSize];
 
         while (!cancellationToken.IsCancellationRequested)
@@ -55,20 +54,31 @@ internal sealed class FileDownloadManager
             if (bytesRead == 0) break;
 
             await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+            await fileStream.FlushAsync(cancellationToken);
 
-            var progress = progressTracker.UpdateProgress(bytesRead);
-            var remainingTime = CalculateRemainingTime(progress.TotalBytesRead, totalBytes, progress.DownloadSpeed);
-
-            yield return FileDownloadProgress.CreateProgress(
-                outputPath,
-                progress.TotalBytesRead,
+            var currentProgress = progressTracker.UpdateProgress(bytesRead);
+            var remainingTime = CalculateRemainingTime(
+                currentProgress.TotalBytesRead,
                 totalBytes,
-                progress.DownloadSpeed,
-                remainingTime);
+                currentProgress.DownloadSpeed);
+
+            progress?.Report(FileDownloadProgress.CreateProgress(
+                outputPath,
+                currentProgress.TotalBytesRead,
+                totalBytes,
+                currentProgress.DownloadSpeed,
+                remainingTime));
         }
 
         _logger?.LogInformation("Download completed: {OutputPath}", outputPath);
-        yield return FileDownloadProgress.CreateCompleted(outputPath, progressTracker.TotalBytesRead);
+
+        return new FileDownloadResult
+        {
+            FilePath = outputPath,
+            BytesDownloaded = progressTracker.TotalBytesRead,
+            TotalBytes = totalBytes,
+            IsCompleted = true
+        };
     }
 
     private HttpRequestMessage CreateRequest(string url, long startFrom)
