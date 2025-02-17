@@ -2,21 +2,22 @@
 
 public record LocalModelInfo
 {
-    public required string Provider { get; init; }
-    public required string ModelName { get; init; }
-    public required string FileName { get; init; }
-    public required string FullPath { get; init; }
+    public string ModelId { get; set; } = null!;
+    public string FullPath { get; set; } = null!;
     public LocalModelState State { get; set; } = LocalModelState.Unloaded;
     public string? LastError { get; set; }
-
-    public string GetFullIdentifier() => $"{Provider}/{ModelName}:{FileName}";
 
     public static bool TryParseIdentifier(string identifier, out (string provider, string modelName, string fileName) result)
     {
         var parts = identifier.Split(['/', ':'], 3);
         if (parts.Length == 3)
         {
-            result = (parts[0], parts[1], parts[2]);
+            // .gguf 확장자가 있다면 제거
+            var fileName = parts[2].EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)
+                ? parts[2][..^5]  // .gguf 문자열 길이만큼 제거
+                : parts[2];
+
+            result = (parts[0], parts[1], fileName);
             return true;
         }
 
@@ -33,10 +34,9 @@ public record LocalModelInfo
 
         return new LocalModelInfo
         {
-            Provider = parts.provider,
-            ModelName = parts.modelName,
-            FileName = parts.fileName,
-            FullPath = filePath
+            ModelId = identifier,
+            FullPath = filePath,
+            State = LocalModelState.Unloaded
         };
     }
 }

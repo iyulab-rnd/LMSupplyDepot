@@ -7,23 +7,23 @@ using Moq;
 
 namespace LMSupplyDepots.LLamaEngine.Tests;
 
-public class LocalLLMServiceTests
+public class LLMServiceTests
 {
-    private readonly Mock<ILogger<LocalLLMService>> _loggerMock;
+    private readonly Mock<ILogger<LLMService>> _loggerMock;
     private readonly Mock<ILocalModelManager> _modelManagerMock;
     private readonly Mock<ILLamaBackendService> _backendServiceMock;
-    private readonly LocalLLMService _service;
+    private readonly LLMService _service;
     private readonly string _testModelIdentifier = "test/model:file.gguf";
 
-    public LocalLLMServiceTests()
+    public LLMServiceTests()
     {
-        _loggerMock = new Mock<ILogger<LocalLLMService>>();
+        _loggerMock = new Mock<ILogger<LLMService>>();
         _modelManagerMock = new Mock<ILocalModelManager>();
         _backendServiceMock = new Mock<ILLamaBackendService>();
 
         SetupDefaultMocks();
 
-        _service = new LocalLLMService(
+        _service = new LLMService(
             _loggerMock.Object,
             _modelManagerMock.Object,
             _backendServiceMock.Object);
@@ -33,9 +33,7 @@ public class LocalLLMServiceTests
     {
         var modelInfo = new LocalModelInfo
         {
-            Provider = "test",
-            ModelName = "model",
-            FileName = "file.gguf",
+            ModelId = "test/model:file.gguf",
             FullPath = Path.Combine(AppContext.BaseDirectory, "test.gguf"),
             State = LocalModelState.Loaded
         };
@@ -65,9 +63,7 @@ public class LocalLLMServiceTests
         // Arrange
         var modelInfo = new LocalModelInfo
         {
-            Provider = "test",
-            ModelName = "model",
-            FileName = "file.gguf",
+            ModelId = "test/model:file.gguf",
             FullPath = "/path/to/model",
             State = LocalModelState.Unloaded
         };
@@ -103,9 +99,7 @@ public class LocalLLMServiceTests
         // Arrange
         var modelInfo = new LocalModelInfo
         {
-            Provider = "test",
-            ModelName = "model",
-            FileName = "file.gguf",
+            ModelId = "test/model:file.gguf",
             FullPath = "/path/to/model",
             State = LocalModelState.Unloaded
         };

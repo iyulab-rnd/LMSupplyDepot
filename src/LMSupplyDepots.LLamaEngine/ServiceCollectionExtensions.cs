@@ -9,7 +9,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<ILLamaBackendService, LLamaBackendService>();
         services.AddSingleton<ILocalModelManager, LocalModelManager>();
-        services.AddSingleton<ILocalLLMService, LocalLLMService>();
+        services.AddSingleton<ILLMService, LLMService>();
         services.AddSystemMonitoring();
 
         return services;

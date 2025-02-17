@@ -1,5 +1,6 @@
 ﻿using LMSupplyDepots.LLamaEngine;
 using LMSupplyDepots.LLamaEngine.Services;
+using LMSupplyDepots.LLamaEngine.Chat;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ services.AddLLamaEngine();
 
 using var serviceProvider = services.BuildServiceProvider();
 var modelManager = serviceProvider.GetRequiredService<ILocalModelManager>();
-var llmService = serviceProvider.GetRequiredService<ILocalLLMService>();
+var llmService = serviceProvider.GetRequiredService<ILLMService>();
 
 // 모델 로드
 Console.WriteLine("Loading LLM model...");
@@ -30,40 +31,71 @@ if (modelInfo?.State != LMSupplyDepots.LLamaEngine.Models.LocalModelState.Loaded
 
 var inferenceParams = ParameterFactory.NewInferenceParams();
 
-// Interactive chat loop
-Console.WriteLine("\nChat started. Type 'exit' to quit.");
-Console.WriteLine("Type 'save' to save the chat state.");
-Console.WriteLine("Type 'regenerate' to regenerate the last response.");
-Console.WriteLine("-------------------");
-
+// Initialize chat history
 string systemPrompt = @"You are a helpful AI assistant that speaks Korean.
 Provide clear and helpful answers, but be honest about what you don't know.
 Your answers are always in Korean.</s>";
 
+var chatHistory = new ChatHistory(systemPrompt);
+
+Console.WriteLine("\nChat started. Type 'exit' to quit.");
+Console.WriteLine("Type 'clear' to clear chat history.");
+Console.WriteLine("Type 'regenerate' to regenerate the last response.");
+Console.WriteLine("-------------------");
+
 try
 {
-    // 시스템 프롬프트로 초기화
-    await llmService.InferAsync(modelIdentifier, systemPrompt, inferenceParams);
-
     while (true)
     {
         Console.Write("\nUser: ");
         var input = Console.ReadLine();
 
-        if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
-            break;
+        if (string.IsNullOrEmpty(input))
+            continue;
+
+        switch (input.ToLower())
+        {
+            case "exit":
+                return;
+
+            case "clear":
+                chatHistory.Clear();
+                Console.WriteLine("Chat history cleared.");
+                continue;
+
+            case "regenerate":
+                // Remove last assistant message if exists
+                var messages = chatHistory.Messages;
+                if (messages.Count > 1 && messages[^1].Role == "assistant")
+                {
+                    // Skip regeneration and continue with next input
+                    continue;
+                }
+                break;
+        }
+
+        // Add user message to history
+        chatHistory.AddMessage("user", input);
+
+        // Get complete prompt with history
+        var fullPrompt = chatHistory.GetFormattedPrompt();
 
         Console.Write("Assistant: ");
-
         try
         {
+            var response = new System.Text.StringBuilder();
+
             await foreach (var text in llmService.InferStreamAsync(
                 modelIdentifier,
-                input,
+                fullPrompt,
                 inferenceParams))
             {
                 Console.Write(text);
+                response.Append(text);
             }
+
+            // Add assistant's response to history
+            chatHistory.AddMessage("assistant", response.ToString());
             Console.WriteLine();
         }
         catch (Exception ex)

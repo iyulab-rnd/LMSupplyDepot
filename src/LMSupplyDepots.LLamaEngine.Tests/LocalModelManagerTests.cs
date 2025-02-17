@@ -34,9 +34,7 @@ public class LocalModelManagerTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(LocalModelState.Loaded, result.State);
-        Assert.Equal("provider", result.Provider);
-        Assert.Equal("model", result.ModelName);
-        Assert.Equal("model.gguf", result.FileName);
+        Assert.Equal(modelIdentifier, result.ModelId);
     }
 
     [Fact]
@@ -88,7 +86,7 @@ public class LocalModelManagerTests
 
         // Assert
         Assert.Single(loadedModels);
-        Assert.Equal(modelIdentifier1, loadedModels[0].GetFullIdentifier());
+        Assert.Equal(modelIdentifier1, loadedModels[0].ModelId);
     }
 
     public void Dispose()

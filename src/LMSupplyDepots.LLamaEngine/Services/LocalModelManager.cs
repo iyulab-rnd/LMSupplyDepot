@@ -1,121 +1,113 @@
-﻿using LMSupplyDepots.LLamaEngine.Models;
+﻿using LLama;
+using LMSupplyDepots.LLamaEngine.Models;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
 namespace LMSupplyDepots.LLamaEngine.Services;
 
-/// <summary>
-/// 로컬 모델 파일의 생명주기와 상태를 관리합니다.
-/// </summary>
 public interface ILocalModelManager
 {
-    /// <summary>
-    /// 특정 모델을 로드합니다.
-    /// </summary>
-    /// <param name="filePath">모델 파일의 전체 경로</param>
-    /// <param name="modelIdentifier">모델 식별자 (예: provider/model:filename.gguf)</param>
-    /// <returns>로드된 모델의 정보</returns>
+    event EventHandler<ModelStateChangedEventArgs>? ModelStateChanged;
     Task<LocalModelInfo?> LoadModelAsync(string filePath, string modelIdentifier);
-
-    /// <summary>
-    /// 로드된 모델을 언로드합니다.
-    /// </summary>
-    /// <param name="modelIdentifier">모델 식별자</param>
     Task UnloadModelAsync(string modelIdentifier);
-
-    /// <summary>
-    /// 현재 로드된 모든 모델의 목록을 반환합니다.
-    /// </summary>
+    LLamaWeights? GetModelWeights(string modelIdentifier);
     Task<IReadOnlyList<LocalModelInfo>> GetLoadedModelsAsync();
-
-    /// <summary>
-    /// 특정 모델의 현재 상태 정보를 반환합니다.
-    /// </summary>
-    /// <param name="modelIdentifier">모델 식별자</param>
     Task<LocalModelInfo?> GetModelInfoAsync(string modelIdentifier);
+    string NormalizeModelIdentifier(string modelIdentifier);
 }
 
 public class LocalModelManager : ILocalModelManager
 {
     private readonly ILogger<LocalModelManager> _logger;
     private readonly ConcurrentDictionary<string, LocalModelInfo> _localModels = new();
+    private readonly ConcurrentDictionary<string, LLamaWeights> _weights = new();
+    private readonly ILLamaBackendService _backendService;
 
-    public LocalModelManager(ILogger<LocalModelManager> logger)
+    public event EventHandler<ModelStateChangedEventArgs>? ModelStateChanged;
+
+    public LocalModelManager(
+        ILogger<LocalModelManager> logger,
+        ILLamaBackendService backendService)
     {
         _logger = logger;
+        _backendService = backendService;
+    }
+
+    public string NormalizeModelIdentifier(string modelIdentifier)
+    {
+        if (modelIdentifier.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase))
+        {
+            return modelIdentifier[..^5];
+        }
+        return modelIdentifier;
     }
 
     public async Task<LocalModelInfo?> LoadModelAsync(string filePath, string modelIdentifier)
     {
+        modelIdentifier = NormalizeModelIdentifier(modelIdentifier);
+        var modelInfo = LocalModelInfo.CreateFromIdentifier(filePath, modelIdentifier);
+
+        if (_localModels.TryGetValue(modelIdentifier, out var existingInfo) &&
+            existingInfo.State == LocalModelState.Loaded)
+        {
+            return existingInfo;
+        }
+
+        UpdateModelState(modelInfo, LocalModelState.Loading);
+
         try
         {
-            var modelInfo = LocalModelInfo.CreateFromIdentifier(filePath, modelIdentifier);
+            var parameters = _backendService.GetOptimalModelParams(filePath);
+            var weights = await LLamaWeights.LoadFromFileAsync(parameters);
+            _weights[modelIdentifier] = weights;
 
-            if (_localModels.TryGetValue(modelIdentifier, out var existingInfo))
-            {
-                if (existingInfo.State == LocalModelState.Loaded)
-                {
-                    return existingInfo;
-                }
-            }
-
-            modelInfo.State = LocalModelState.Loading;
-            _localModels[modelIdentifier] = modelInfo;
-
-            // 파일 존재 여부 확인
-            if (!File.Exists(filePath))
-            {
-                throw new FileNotFoundException($"Model file not found: {filePath}");
-            }
-
-            modelInfo.State = LocalModelState.Loaded;
-            _localModels[modelIdentifier] = modelInfo;
-
-            _logger.LogInformation("Successfully loaded model {ModelIdentifier} from {FilePath}",
-                modelIdentifier, filePath);
-
+            UpdateModelState(modelInfo, LocalModelState.Loaded);
             return modelInfo;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load model {ModelIdentifier} from {FilePath}",
-                modelIdentifier, filePath);
-
-            var failedInfo = new LocalModelInfo
-            {
-                Provider = "unknown",
-                ModelName = "unknown",
-                FileName = Path.GetFileName(filePath),
-                FullPath = filePath,
-                State = LocalModelState.Failed,
-                LastError = ex.Message
-            };
-
-            _localModels[modelIdentifier] = failedInfo;
-            return failedInfo;
+            modelInfo.LastError = ex.Message;
+            UpdateModelState(modelInfo, LocalModelState.Failed);
+            throw;
         }
+    }
+
+    public LLamaWeights? GetModelWeights(string modelIdentifier)
+    {
+        _weights.TryGetValue(modelIdentifier, out var weights);
+        return weights;
+    }
+    
+    private void UpdateModelState(LocalModelInfo modelInfo, LocalModelState newState)
+    {
+        var oldState = modelInfo.State;
+        modelInfo.State = newState;
+        _localModels[modelInfo.ModelId] = modelInfo;
+
+        ModelStateChanged?.Invoke(this, new ModelStateChangedEventArgs(
+            modelInfo.ModelId,
+            oldState,
+            newState));
     }
 
     public async Task UnloadModelAsync(string modelIdentifier)
     {
+        modelIdentifier = NormalizeModelIdentifier(modelIdentifier);
+
         if (_localModels.TryGetValue(modelIdentifier, out var modelInfo))
         {
             try
             {
-                modelInfo.State = LocalModelState.Unloading;
-                _localModels[modelIdentifier] = modelInfo;
-
-                modelInfo.State = LocalModelState.Unloaded;
-                _localModels[modelIdentifier] = modelInfo;
+                UpdateModelState(modelInfo, LocalModelState.Unloading);
+                UpdateModelState(modelInfo, LocalModelState.Unloaded);
 
                 _logger.LogInformation("Successfully unloaded model {ModelIdentifier}", modelIdentifier);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to unload model {ModelIdentifier}", modelIdentifier);
-                modelInfo.State = LocalModelState.Failed;
                 modelInfo.LastError = ex.Message;
-                _localModels[modelIdentifier] = modelInfo;
+                UpdateModelState(modelInfo, LocalModelState.Failed);
                 throw;
             }
         }
@@ -132,6 +124,7 @@ public class LocalModelManager : ILocalModelManager
 
     public Task<LocalModelInfo?> GetModelInfoAsync(string modelIdentifier)
     {
+        modelIdentifier = NormalizeModelIdentifier(modelIdentifier);
         _localModels.TryGetValue(modelIdentifier, out var modelInfo);
         return Task.FromResult(modelInfo);
     }
