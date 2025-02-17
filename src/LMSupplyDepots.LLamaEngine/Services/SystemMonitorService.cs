@@ -224,13 +224,3 @@ public class SystemMonitorService : ISystemMonitorService, IDisposable
         _process.Dispose();
     }
 }
-
-// ServiceCollection 확장 메서드
-public static class SystemMonitorServiceExtensions
-{
-    public static IServiceCollection AddSystemMonitoring(this IServiceCollection services)
-    {
-        services.AddSingleton<ISystemMonitorService, SystemMonitorService>();
-        return services;
-    }
-}

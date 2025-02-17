@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 namespace LMSupplyDepots.LLamaEngine.Services;
 
-public interface ILocalModelManager
+public interface ILLamaModelManager
 {
     event EventHandler<ModelStateChangedEventArgs>? ModelStateChanged;
     Task<LocalModelInfo?> LoadModelAsync(string filePath, string modelIdentifier);
@@ -16,17 +16,17 @@ public interface ILocalModelManager
     string NormalizeModelIdentifier(string modelIdentifier);
 }
 
-public class LocalModelManager : ILocalModelManager
+public class LLamaModelManager : ILLamaModelManager
 {
-    private readonly ILogger<LocalModelManager> _logger;
+    private readonly ILogger<LLamaModelManager> _logger;
     private readonly ConcurrentDictionary<string, LocalModelInfo> _localModels = new();
     private readonly ConcurrentDictionary<string, LLamaWeights> _weights = new();
     private readonly ILLamaBackendService _backendService;
 
     public event EventHandler<ModelStateChangedEventArgs>? ModelStateChanged;
 
-    public LocalModelManager(
-        ILogger<LocalModelManager> logger,
+    public LLamaModelManager(
+        ILogger<LLamaModelManager> logger,
         ILLamaBackendService backendService)
     {
         _logger = logger;

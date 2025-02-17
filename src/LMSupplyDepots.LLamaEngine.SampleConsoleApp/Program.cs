@@ -17,7 +17,7 @@ services.AddLogging(builder =>
 services.AddLLamaEngine();
 
 using var serviceProvider = services.BuildServiceProvider();
-var modelManager = serviceProvider.GetRequiredService<ILocalModelManager>();
+var modelManager = serviceProvider.GetRequiredService<ILLamaModelManager>();
 var llmService = serviceProvider.GetRequiredService<ILLMService>();
 
 // 모델 로드

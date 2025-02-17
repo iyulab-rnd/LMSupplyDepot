@@ -31,7 +31,7 @@ public interface ILLMService
 public class LLMService : ILLMService, IAsyncDisposable
 {
     private readonly ILogger<LLMService> _logger;
-    private readonly ILocalModelManager _modelManager;
+    private readonly ILLamaModelManager _modelManager;
     private readonly ILLamaBackendService _backendService;
     private readonly ConcurrentDictionary<string, ModelResources> _loadedModels = new();
     private readonly ConcurrentDictionary<string, LLamaContext> _contexts = new();
@@ -40,7 +40,7 @@ public class LLMService : ILLMService, IAsyncDisposable
 
     public LLMService(
         ILogger<LLMService> logger,
-        ILocalModelManager modelManager,
+        ILLamaModelManager modelManager,
         ILLamaBackendService backendService)
     {
         _logger = logger;
@@ -154,7 +154,7 @@ public class LLMService : ILLMService, IAsyncDisposable
     {
         ThrowIfDisposed();
         var (executor, _) = await GetExecutorAsync(modelIdentifier, cancellationToken);
-        parameters ??= new InferenceParams { MaxTokens = 2048 };
+        parameters ??= ParameterFactory.NewInferenceParams();
 
         try
         {
@@ -184,7 +184,7 @@ public class LLMService : ILLMService, IAsyncDisposable
     {
         ThrowIfDisposed();
         var (executor, _) = await GetExecutorAsync(modelIdentifier, cancellationToken);
-        parameters ??= new InferenceParams { MaxTokens = 2048 };
+        parameters ??= ParameterFactory.NewInferenceParams();
 
         await foreach (var text in executor.InferAsync(prompt, parameters, cancellationToken)
             .WithCancellation(cancellationToken))
