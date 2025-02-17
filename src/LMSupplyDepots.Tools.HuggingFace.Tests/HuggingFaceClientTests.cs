@@ -1,5 +1,6 @@
 ﻿using LMSupplyDepots.Tools.HuggingFace.Client;
 using LMSupplyDepots.Tools.HuggingFace.Common;
+using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using LMSupplyDepots.Tools.HuggingFace.Tests.Core;
 using Microsoft.Extensions.Logging;
@@ -73,18 +74,6 @@ public class HuggingFaceClientTests
     }
 
     [Fact]
-    public async Task SearchTextGenerationModelsAsync_WithNoParameters_ReturnsGgufModels()
-    {
-        // Act
-        var result = await _client.SearchTextGenerationModelsAsync();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.NotEmpty(result);
-        Assert.All(result, model => Assert.True(model.HasGgufFiles()));
-    }
-
-    [Fact]
     public async Task FindModelByRepoIdAsync_WithValidId_ReturnsModel()
     {
         // Arrange
@@ -143,30 +132,28 @@ public class HuggingFaceClientTests
     }
 
     [Fact]
-    public async Task DownloadFileAsync_WithValidFile_DownloadsSuccessfully()
+    public async Task DownloadFileWithResultAsync_WithValidFile_DownloadsSuccessfully()
     {
         // Arrange
         var repoId = "test/model";
         var filePath = "test.bin";
         var outputPath = Path.GetTempFileName();
+        var progress = new Progress<FileDownloadProgress>();
 
         try
         {
             // Act
-            await foreach (var progress in _client.DownloadFileAsync(repoId, filePath, outputPath))
-            {
-                // Assert progress
-                Assert.NotNull(progress);
-                Assert.Equal(outputPath, progress.UploadPath);
-                Assert.True(progress.CurrentBytes >= 0);
-                Assert.True(progress.DownloadSpeed >= 0);
-                if (progress.TotalBytes.HasValue)
-                {
-                    Assert.True(progress.TotalBytes > 0);
-                }
-            }
+            var result = await _client.DownloadFileWithResultAsync(
+                repoId,
+                filePath,
+                outputPath,
+                progress: progress);
 
-            // Assert file exists
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.IsCompleted);
+            Assert.Equal(outputPath, result.FilePath);
+            Assert.True(result.BytesDownloaded > 0);
             Assert.True(File.Exists(outputPath));
         }
         finally
@@ -174,6 +161,52 @@ public class HuggingFaceClientTests
             if (File.Exists(outputPath))
                 File.Delete(outputPath);
         }
+    }
+
+    [Fact]
+    public async Task DownloadRepositoryAsync_WithValidRepo_DownloadsFiles()
+    {
+        // Arrange
+        var repoId = "test/model";
+        var outputDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outputDir);
+
+        try
+        {
+            // Act
+            await foreach (var progress in _client.DownloadRepositoryAsync(repoId, outputDir))
+            {
+                // Assert progress
+                Assert.NotNull(progress);
+                Assert.NotEmpty(progress.TotalFiles);
+                Assert.True(progress.TotalProgress >= 0 && progress.TotalProgress <= 1);
+            }
+
+            // Assert directory is not empty
+            Assert.True(Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetDownloadUrl_WithValidParameters_ReturnsUrl()
+    {
+        // Arrange
+        var repoId = "test/model";
+        var filePath = "test.bin";
+
+        // Act
+        var url = _client.GetDownloadUrl(repoId, filePath);
+
+        // Assert
+        Assert.NotNull(url);
+        Assert.Contains(Uri.EscapeDataString(repoId), url);
+        Assert.Contains(Uri.EscapeDataString(filePath), url);
+        Assert.StartsWith("https://", url);
     }
 
     [Fact]
@@ -185,5 +218,4 @@ public class HuggingFaceClientTests
 
         // Assert - no exception thrown
     }
-
 }

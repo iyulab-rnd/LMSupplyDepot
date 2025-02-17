@@ -175,11 +175,11 @@ internal class SampleDownloadModel
     }
 
     private static async Task StartDownload(
-        HuggingFaceClient client,
-        string modelId,
-        string outputDir,
-        List<(string Path, long? Size)> selectedFiles,
-        FileDownloadTracking downloadTracking)
+    HuggingFaceClient client,
+    string modelId,
+    string outputDir,
+    List<(string Path, long? Size)> selectedFiles,
+    FileDownloadTracking downloadTracking)
     {
         Console.WriteLine($"\nStarting download of {selectedFiles.Count} files to {outputDir}");
 
@@ -228,83 +228,21 @@ internal class SampleDownloadModel
 
         try
         {
-            foreach (var file in selectedFiles)
+            var filePaths = selectedFiles.Select(f => f.Path).ToList();
+
+            await foreach (var progress in client.DownloadRepositoryFilesAsync(
+                modelId, filePaths, outputDir, true, cts.Token))
             {
                 if (cts.Token.IsCancellationRequested) break;
+                await _pauseEvent.WaitHandle.WaitOneAsync(cts.Token);
 
-                // 파일명만 추출하여 사용
-                var fileName = Path.GetFileName(file.Path);
-                // 출력 경로 구성 (이 시점에서 정규화)
-                var outputPath = Path.Combine(outputDir, modelId, fileName);
-
-                // 디렉토리가 없다면 생성
-                var directoryPath = Path.GetDirectoryName(outputPath);
-                if (!string.IsNullOrEmpty(directoryPath))
-                {
-                    Directory.CreateDirectory(directoryPath);
-                }
-
-                if (!file.Size.HasValue)
-                {
-                    Console.WriteLine($"Skipping {fileName} - size unknown");
-                    continue;
-                }
-
-                // 이어받기 위치 결정
-                long resumePosition = 0;
-                if (existingFiles.TryGetValue(file.Path, out var existingSize))
-                {
-                    resumePosition = existingSize.Size;
-                }
-                else
-                {
-                    resumePosition = await downloadTracking.GetResumePositionAsync(modelId, fileName);
-                }
-
-                if (resumePosition >= file.Size.Value)
-                {
-                    Console.WriteLine($"File already completed: {fileName}");
-                    continue;
-                }
-
-                try
-                {
-                    // 다운로드 시작 시 상태 객체를 올바른 형식으로 생성
-                    await downloadTracking.RecordDownloadStartAsync(
-                        modelId,     // 이미 정규화된 모델 ID
-                        fileName,    // 순수 파일명
-                        file.Size.Value);
-
-                    if (resumePosition > 0)
-                    {
-                        Console.WriteLine($"Resuming {fileName} from {StringFormatter.FormatSize(resumePosition)}");
-                    }
-
-                    // 파일 다운로드 스트림 처리
-                    await foreach (var progress in client.DownloadFileAsync(
-                        modelId,
-                        file.Path,    // 원본 파일 경로
-                        outputPath,   // 전체 경로
-                        resumePosition,
-                        cts.Token))
-                    {
-                        if (cts.Token.IsCancellationRequested) break;
-                        await _pauseEvent.WaitHandle.WaitOneAsync(cts.Token);
-
-                        // 진행상황 업데이트
-                        await downloadTracking.UpdateProgressAsync(
-                            modelId,
-                            fileName,    // 순수 파일명
-                            progress.CurrentBytes,
-                            progress.IsCompleted);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"\nError downloading {fileName}: {ex.Message}");
-                    Console.WriteLine("Continuing with next file...");
-                    continue;
-                }
+                // 진행 상황 업데이트
+                var currentProgress = progress.CurrentProgresses.FirstOrDefault();
+                ConsoleOutputManager.WriteProgressUpdate(
+                    progress.TotalProgress,
+                    progress.TotalFiles.Count,
+                    progress.CompletedFiles.Count,
+                    currentProgress);
             }
 
             if (!cts.Token.IsCancellationRequested)
@@ -344,18 +282,22 @@ internal class SampleDownloadModel
 
         // 이벤트 핸들러 등록
         downloadTracking.DownloadProgressUpdated += (s, e) =>
+        {
+            var progress = new FileDownloadProgress
+            {
+                UploadPath = Path.Combine(baseDir, e.ModelId, e.FilePath),
+                CurrentBytes = e.DownloadedSize,
+                TotalBytes = e.TotalSize,
+                DownloadProgress = e.Progress
+            };
+
             ConsoleOutputManager.WriteProgressUpdate(
                 e.Progress,
                 selectedFiles.Count,
                 selectedFiles.Count(f =>
                     downloadTracking.GetResumePositionAsync(modelId, f.Path).Result == f.Size),
-                new FileDownloadProgress
-                {
-                    UploadPath = Path.Combine(baseDir, e.ModelId, e.FilePath),  // 여기서 경로 생성
-                    CurrentBytes = e.DownloadedSize,
-                    TotalBytes = e.TotalSize,
-                    DownloadProgress = e.Progress
-                });
+                progress);
+        };
 
         downloadTracking.DownloadStarted += (s, e) =>
             Console.WriteLine($"\nStarting download: {e.FilePath}");
