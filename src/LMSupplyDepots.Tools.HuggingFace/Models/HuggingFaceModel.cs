@@ -4,22 +4,15 @@ using System.Text.RegularExpressions;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Models;
 
-/// <summary>
-/// Represents a file in the model repository
-/// </summary>
 public class Sibling
 {
     [JsonPropertyName("rfilename")]
     public string Filename { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Represents a Hugging Face model with both strongly-typed properties and dynamic JSON handling.
-/// </summary>
 [JsonConverter(typeof(HuggingFaceModelConverter))]
 public class HuggingFaceModel
 {
-    // Essential strongly-typed properties
     [JsonPropertyName("_id")]
     public string Id { get; set; } = string.Empty;
 
@@ -53,11 +46,12 @@ public class HuggingFaceModel
     [JsonPropertyName("library_name")]
     public string LibraryName { get; set; } = string.Empty;
 
-    // Config storage as dictionary
-    [JsonPropertyName("config")]
-    public Dictionary<string, JsonElement> Config { get; set; } = new();
+    [JsonPropertyName("siblings")]
+    public List<Sibling> Siblings { get; set; } = [];
 
-    // Dynamic JSON storage
+    [JsonPropertyName("gguf")]
+    public Dictionary<string, JsonElement> GGUF { get; set; } = new();
+
     private readonly JsonDocument? _rawJson;
 
     [JsonIgnore]
@@ -73,11 +67,9 @@ public class HuggingFaceModel
         _rawJson = rawJson;
         if (_rawJson != null)
         {
-            // Store all properties in the dictionary
             foreach (var property in _rawJson.RootElement.EnumerateObject())
             {
                 var propertyName = property.Name;
-                // Skip properties that are already strongly typed
                 if (propertyName != "_id" &&
                     propertyName != "modelId" &&
                     propertyName != "author" &&
@@ -86,7 +78,8 @@ public class HuggingFaceModel
                     propertyName != "lastModified" &&
                     propertyName != "private" &&
                     propertyName != "tags" &&
-                    propertyName != "config")
+                    propertyName != "siblings" &&
+                    propertyName != "gguf")
                 {
                     _additionalProperties[propertyName] = property.Value.Clone();
                 }
@@ -94,9 +87,6 @@ public class HuggingFaceModel
         }
     }
 
-    /// <summary>
-    /// Gets a strongly-typed value for a specific property.
-    /// </summary>
     public T? GetProperty<T>(string propertyName)
     {
         if (_additionalProperties.TryGetValue(propertyName, out var element))
@@ -113,20 +103,14 @@ public class HuggingFaceModel
         return default;
     }
 
-    /// <summary>
-    /// Gets the raw JsonElement for a property.
-    /// </summary>
     public JsonElement? GetRawProperty(string propertyName)
     {
         return _additionalProperties.TryGetValue(propertyName, out var element) ? element : null;
     }
 
-    /// <summary>
-    /// Gets all file paths from the siblings property, optionally filtered by a regex pattern.
-    /// </summary>
     public string[] GetFilePaths(Regex? pattern = null)
     {
-        var siblings = GetProperty<List<Sibling>>("siblings");
+        var siblings = this.Siblings;
         if (siblings == null || siblings.Count == 0)
             return [];
 
@@ -137,28 +121,19 @@ public class HuggingFaceModel
         if (pattern != null)
             return paths.Where(p => pattern.IsMatch(p)).ToArray();
 
-        return paths.ToArray();
+        return [.. paths];
     }
 
-    /// <summary>
-    /// Checks if a property exists in the model.
-    /// </summary>
     public bool HasProperty(string propertyName)
     {
         return _additionalProperties.ContainsKey(propertyName);
     }
 
-    /// <summary>
-    /// Gets all property names available in the model.
-    /// </summary>
     public IEnumerable<string> GetAvailableProperties()
     {
         return _additionalProperties.Keys;
     }
 
-    /// <summary>
-    /// Custom JSON converter for HuggingFaceModel
-    /// </summary>
     public class HuggingFaceModelConverter : JsonConverter<HuggingFaceModel>
     {
         public override HuggingFaceModel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -166,7 +141,6 @@ public class HuggingFaceModel
             using var document = JsonDocument.ParseValue(ref reader);
             var model = new HuggingFaceModel(document);
 
-            // Set essential properties
             if (document.RootElement.TryGetProperty("_id", out var idElement))
             {
                 model.Id = idElement.GetString() ?? string.Empty;
@@ -222,9 +196,14 @@ public class HuggingFaceModel
                 model.LibraryName = libraryNameElement.GetString() ?? string.Empty;
             }
 
-            if (document.RootElement.TryGetProperty("config", out var configElement))
+            if (document.RootElement.TryGetProperty("siblings", out var siblingsElement))
             {
-                model.Config = configElement.Deserialize<Dictionary<string, JsonElement>>(options) ?? new();
+                model.Siblings = siblingsElement.Deserialize<List<Sibling>>(options) ?? [];
+            }
+
+            if (document.RootElement.TryGetProperty("gguf", out var ggufElement))
+            {
+                model.GGUF = ggufElement.Deserialize<Dictionary<string, JsonElement>>(options) ?? [];
             }
 
             return model;
@@ -234,7 +213,6 @@ public class HuggingFaceModel
         {
             writer.WriteStartObject();
 
-            // Write strongly-typed properties
             writer.WriteString("_id", value.Id);
             writer.WriteString("modelId", value.ModelId);
             writer.WriteString("author", value.Author);
@@ -250,7 +228,12 @@ public class HuggingFaceModel
             writer.WriteString("createdAt", value.CreatedAt);
             writer.WriteString("library_name", value.LibraryName);
 
-            // Write additional properties
+            writer.WritePropertyName("siblings");
+            JsonSerializer.Serialize(writer, value.Siblings, options);
+
+            writer.WritePropertyName("gguf");
+            JsonSerializer.Serialize(writer, value.GGUF, options);
+
             foreach (var prop in value._additionalProperties)
             {
                 writer.WritePropertyName(prop.Key);
@@ -262,40 +245,25 @@ public class HuggingFaceModel
     }
 }
 
-/// <summary>
-/// Extension methods for working with HuggingFaceModel properties
-/// </summary>
 public static class HuggingFaceModelExtensions
 {
-    /// <summary>
-    /// Gets a boolean property value with a fallback.
-    /// </summary>
     public static bool GetBooleanProperty(this HuggingFaceModel model, string propertyName, bool defaultValue = false)
     {
         var value = model.GetProperty<bool?>(propertyName);
         return value.GetValueOrDefault(defaultValue);
     }
 
-    /// <summary>
-    /// Gets an integer property value with a fallback.
-    /// </summary>
     public static int GetIntegerProperty(this HuggingFaceModel model, string propertyName, int defaultValue = 0)
     {
         var value = model.GetProperty<int?>(propertyName);
         return value.GetValueOrDefault(defaultValue);
     }
 
-    /// <summary>
-    /// Gets a string property value with a fallback.
-    /// </summary>
     public static string GetStringProperty(this HuggingFaceModel model, string propertyName, string defaultValue = "")
     {
         return model.GetProperty<string>(propertyName) ?? defaultValue;
     }
 
-    /// <summary>
-    /// Gets a list property value with a fallback.
-    /// </summary>
     public static List<T> GetListProperty<T>(this HuggingFaceModel model, string propertyName)
     {
         return model.GetProperty<List<T>>(propertyName) ?? new List<T>();

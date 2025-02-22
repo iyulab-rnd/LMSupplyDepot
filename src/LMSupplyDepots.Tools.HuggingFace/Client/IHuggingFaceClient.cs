@@ -1,5 +1,6 @@
 ﻿using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
+using System.Text.Json;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Client;
 
@@ -55,6 +56,11 @@ public interface IHuggingFaceClient : IDisposable
     Task<HuggingFaceFile> GetFileInfoAsync(
         string repoId,
         string filePath,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<JsonElement>> GetRepositoryFilesAsync(
+        string repoId,
+        string? treePath = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

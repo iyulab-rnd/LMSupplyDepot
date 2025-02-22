@@ -3,6 +3,7 @@ using LMSupplyDepots.Tools.HuggingFace.Download;
 using LMSupplyDepots.Tools.HuggingFace.Models;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LMSupplyDepots.Tools.HuggingFace.Client;
@@ -183,8 +184,12 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
             return await RetryHandler.ExecuteWithRetryAsync(
                 async () =>
                 {
-                    var model = await _httpClient.GetFromJsonAsync<HuggingFaceModel>(
-                        requestUri, cancellationToken);
+                    using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var model = JsonSerializer.Deserialize<HuggingFaceModel>(json);
+
                     if (model == null)
                     {
                         throw new HuggingFaceException(
@@ -270,6 +275,47 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
         }
     }
 
+    /// <summary>
+    /// Gets file information from a repository or directory.
+    /// </summary>
+    public async Task<IReadOnlyList<JsonElement>> GetRepositoryFilesAsync(
+        string repoId,
+        string? treePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var path = treePath != null
+            ? $"{repoId}/tree/main/{treePath}"
+            : repoId;
+
+        var requestUri = $"https://huggingface.co/api/models/{Uri.EscapeDataString(path)}";
+
+        try
+        {
+            return await RetryHandler.ExecuteWithRetryAsync(
+                async () =>
+                {
+                    using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var items = JsonSerializer.Deserialize<List<JsonElement>>(json);
+                    return items ?? new List<JsonElement>();
+                },
+                _options.MaxRetries,
+                _options.RetryDelayMilliseconds,
+                _logger,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to get repository files for '{Path}'", path);
+            throw new HuggingFaceException(
+                $"Failed to get repository files for '{path}'",
+                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
+        }
+    }
+
     /// <inheritdoc/>
     public IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
         string repoId,
@@ -310,43 +356,197 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
     }
 
     /// <summary>
-    /// Gets file sizes for all files in a repository.
+    /// Gets file sizes for all files in a repository including subdirectories.
     /// </summary>
-    /// <param name="repoId">Repository ID (e.g. "unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF")</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Dictionary mapping file paths to their sizes</returns>
     public async Task<Dictionary<string, long>> GetRepositoryFileSizesAsync(
         string repoId,
         CancellationToken cancellationToken = default)
     {
-        var requestUri = $"https://huggingface.co/api/models/{Uri.EscapeDataString(repoId)}/tree/main";
+        var requestUri = $"https://huggingface.co/api/models/{Uri.EscapeDataString(repoId)}";
 
         try
         {
-            return await RetryHandler.ExecuteWithRetryAsync(
+            var result = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            var model = await FindModelByRepoIdAsync(repoId, cancellationToken);
+
+            // siblings 배열에서 각 파일의 경로 추출
+            var siblings = model.Siblings ?? [];
+            // 하위경로에 GGUF 파일이 있는지 확인
+            var subFiles = siblings.Where(p => p.Filename.Contains('/') && p.Filename.EndsWith(".gguf"));
+            if (subFiles.Any())
+            {
+                var dirGroups = siblings
+                    .Where(s => !string.IsNullOrEmpty(s.Filename))
+                    .GroupBy(s => Path.GetDirectoryName(s.Filename))
+                    .Where(g => !string.IsNullOrEmpty(g.Key));
+
+                // 각 디렉토리별로 파일 크기 조회
+                foreach (var group in dirGroups)
+                {
+                    var treePath = group.Key!.Replace('\\', '/');
+                    await GetFileSizesInDirectoryAsync(repoId, treePath, result, cancellationToken);
+                }
+            }
+            else
+            {
+                // 루트 디렉토리의 파일들 크기 조회
+                var rootFiles = siblings
+                        .Where(s => !string.IsNullOrEmpty(s.Filename) &&
+                                   !s.Filename.Contains('/') &&
+                                   !s.Filename.Contains('\\'));
+                if (rootFiles.Any())
+                {
+                    await GetFileSizesInDirectoryAsync(repoId, "", result, cancellationToken);
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to get repository file sizes for {RepoId}", repoId);
+            throw new HuggingFaceException(
+                $"Failed to get repository file sizes for '{repoId}'",
+                (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
+                ex);
+        }
+    }
+
+    private async Task GetFileSizesInDirectoryAsync(
+        string repoId,
+        string treePath,
+        Dictionary<string, long> results,
+        CancellationToken cancellationToken)
+    {
+        var path = !string.IsNullOrEmpty(treePath)
+            ? $"{repoId}/tree/main/{treePath}"
+            : $"{repoId}/tree/main";
+
+        // Uri.EscapeDataString 를 하면 안됩니다. (/를 그대로 사용되어야 함.) (주석삭제금지!)
+        var requestUri = $"https://huggingface.co/api/models/{path}";
+
+        try
+        {
+            var items = await RetryHandler.ExecuteWithRetryAsync(
                 async () =>
                 {
                     using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
                     response.EnsureSuccessStatusCode();
 
-                    var items = await response.Content.ReadFromJsonAsync<List<TreeItem>>(
-                        cancellationToken: cancellationToken) ?? [];
-
-                    return items.ToDictionary(
-                        item => item.Path,
-                        item => item.Lfs?.Size ?? item.Size,
-                        StringComparer.OrdinalIgnoreCase);
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var treeItems = JsonSerializer.Deserialize<List<TreeItem>>(json);
+                    return treeItems ?? [];
                 },
                 _options.MaxRetries,
                 _options.RetryDelayMilliseconds,
                 _logger,
                 cancellationToken);
+
+            foreach (var item in items)
+            {
+                if (item.Type == "file")
+                {
+                    var fullPath = item.Path;
+                    results[fullPath] = item.Lfs?.Size ?? item.Size;
+                }
+            }
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to get repository tree for '{RepoId}'", repoId);
+            _logger?.LogError(ex,
+                "Failed to get repository tree for '{RepoId}' at path '{TreePath}'",
+                repoId, treePath);
+        }
+    }
+
+    private async Task GetRepositoryFileSizesInternalAsync(
+        string repoId,
+        string treePath,
+        Dictionary<string, long> results,
+        CancellationToken cancellationToken)
+    {
+        var path = !string.IsNullOrEmpty(treePath)
+            ? $"{repoId}/tree/main/{treePath}"
+            : repoId;
+
+        var requestUri = $"https://huggingface.co/api/models/{Uri.EscapeDataString(path)}";
+
+        try
+        {
+            var items = await RetryHandler.ExecuteWithRetryAsync(
+                async () =>
+                {
+                    using var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                    // 응답을 JsonDocument로 먼저 파싱
+                    using var document = JsonDocument.Parse(json);
+                    var root = document.RootElement;
+
+                    // 배열이 아닌 경우 빈 리스트 반환
+                    if (root.ValueKind != JsonValueKind.Array)
+                    {
+                        return new List<TreeItem>();
+                    }
+
+                    var items = new List<TreeItem>();
+                    foreach (var element in root.EnumerateArray())
+                    {
+                        var item = new TreeItem
+                        {
+                            Path = element.GetProperty("path").GetString() ?? "",
+                            Type = element.GetProperty("type").GetString() ?? "",
+                            Size = element.TryGetProperty("size", out var size) ? size.GetInt64() : 0
+                        };
+
+                        if (element.TryGetProperty("lfs", out var lfs))
+                        {
+                            item.Lfs = new TreeItem.LfsInfo
+                            {
+                                Size = lfs.GetProperty("size").GetInt64()
+                            };
+                        }
+
+                        items.Add(item);
+                    }
+
+                    return items;
+                },
+                _options.MaxRetries,
+                _options.RetryDelayMilliseconds,
+                _logger,
+                cancellationToken);
+
+            foreach (var item in items)
+            {
+                if (item.Type == "tree") // directory type is "tree" in the API
+                {
+                    var subPath = string.IsNullOrEmpty(treePath)
+                        ? item.Path
+                        : $"{treePath}/{item.Path}";
+
+                    await GetRepositoryFileSizesInternalAsync(
+                        repoId, subPath, results, cancellationToken);
+                }
+                else if (item.Type == "blob") // file type is "blob" in the API
+                {
+                    var fullPath = string.IsNullOrEmpty(treePath)
+                        ? item.Path
+                        : $"{treePath}/{item.Path}";
+
+                    results[fullPath] = item.Lfs?.Size ?? item.Size;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex,
+                "Failed to get repository tree for '{RepoId}' at path '{TreePath}'",
+                repoId, treePath);
             throw new HuggingFaceException(
-                $"Failed to get repository tree for '{repoId}'",
+                $"Failed to get repository tree for '{repoId}' at path '{treePath}'",
                 (ex as HttpRequestException)?.StatusCode ?? HttpStatusCode.InternalServerError,
                 ex);
         }
@@ -397,6 +597,9 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
     {
         [JsonPropertyName("path")]
         public string Path { get; set; } = "";
+
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = "";
 
         [JsonPropertyName("size")]
         public long Size { get; set; }
