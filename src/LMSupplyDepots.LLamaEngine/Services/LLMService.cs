@@ -36,7 +36,12 @@ public class LLMService : ILLMService, IAsyncDisposable
     private readonly ConcurrentDictionary<string, ModelResources> _loadedModels = new();
     private readonly ConcurrentDictionary<string, LLamaContext> _contexts = new();
     private readonly ConcurrentDictionary<string, InteractiveExecutor> _executors = new();
+    private readonly SemaphoreSlim _inferLock = new SemaphoreSlim(1, 1);
     private bool _disposed;
+
+    // 모델/컨텍스트/실행기 재시도 설정
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
 
     public LLMService(
         ILogger<LLMService> logger,
@@ -53,49 +58,249 @@ public class LLMService : ILLMService, IAsyncDisposable
     {
         if (e.NewState == LocalModelState.Unloading || e.NewState == LocalModelState.Unloaded)
         {
-            CleanupModelResources(e.ModelIdentifier);
+            CleanupModelResourcesAsync(e.ModelIdentifier).GetAwaiter().GetResult();
         }
     }
 
-    private void CleanupModelResources(string modelId)
+    public async Task<string> InferAsync(
+        string modelIdentifier,
+        string prompt,
+        InferenceParams? parameters = null,
+        CancellationToken cancellationToken = default)
     {
-        if (_executors.TryRemove(modelId, out var executor))
+        try
         {
-            try
+            await _inferLock.WaitAsync(cancellationToken);
+
+            int retryCount = 0;
+            while (true)
             {
-                // Executor will be disposed when context is disposed
-                _logger.LogInformation("Removed executor for model {ModelId}", modelId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error cleaning up executor for model {ModelId}", modelId);
+                try
+                {
+                    ThrowIfDisposed();
+                    var (executor, _) = await GetExecutorWithRetryAsync(modelIdentifier, cancellationToken);
+                    parameters ??= ParameterFactory.NewInferenceParams();
+
+                    var result = new System.Text.StringBuilder();
+                    await foreach (var text in executor.InferAsync(prompt, parameters)
+                        .WithCancellation(cancellationToken))
+                    {
+                        result.Append(text);
+                    }
+                    return result.ToString();
+                }
+                catch (Exception ex) when (
+                    ex is not OperationCanceledException &&
+                    ex is not ObjectDisposedException &&
+                    retryCount < MaxRetries)
+                {
+                    retryCount++;
+                    _logger.LogWarning(ex,
+                        "Inference attempt {RetryCount} failed for model {ModelId}. Retrying...",
+                        retryCount, modelIdentifier);
+
+                    await CleanupFailedResourcesAsync(modelIdentifier);
+                    await Task.Delay(RetryDelay * retryCount, cancellationToken);
+                    continue;
+                }
             }
         }
-
-        if (_contexts.TryRemove(modelId, out var context))
+        finally
         {
-            try
+            _inferLock.Release();
+        }
+    }
+
+        public async IAsyncEnumerable<string> InferStreamAsync(
+        string modelIdentifier,
+        string prompt,
+        InferenceParams? parameters = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await _inferLock.WaitAsync(cancellationToken);
+        try
+        {
+            int retryCount = 0;
+            while (true)
             {
-                context.Dispose();
-                _logger.LogInformation("Disposed context for model {ModelId}", modelId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error disposing context for model {ModelId}", modelId);
+                IAsyncEnumerable<string> stream;
+                try
+                {
+                    ThrowIfDisposed();
+                    var (executor, _) = await GetExecutorWithRetryAsync(modelIdentifier, cancellationToken);
+                    parameters ??= ParameterFactory.NewInferenceParams();
+                    stream = executor.InferAsync(prompt, parameters, cancellationToken);
+                }
+                catch (Exception ex) when (
+                    ex is not OperationCanceledException &&
+                    ex is not ObjectDisposedException &&
+                    retryCount < MaxRetries)
+                {
+                    retryCount++;
+                    _logger.LogWarning(ex,
+                        "Streaming inference attempt {RetryCount} failed for model {ModelId}. Retrying...",
+                        retryCount, modelIdentifier);
+
+                    await CleanupFailedResourcesAsync(modelIdentifier);
+                    await Task.Delay(RetryDelay * retryCount, cancellationToken);
+                    continue;
+                }
+
+                // foreach 구문에서 WithCancellation 적용
+                await foreach (var text in stream.WithCancellation(cancellationToken))
+                {
+                    yield return text;
+                }
+                yield break;
             }
         }
+        finally
+        {
+            _inferLock.Release();
+        }
+    }
 
-        if (_loadedModels.TryRemove(modelId, out var resources))
+
+
+    public async Task<float[]> CreateEmbeddingAsync(
+        string modelIdentifier,
+        string text,
+        bool normalize = true,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _inferLock.WaitAsync(cancellationToken);
+
+            int retryCount = 0;
+            while (true)
+            {
+                try
+                {
+                    ThrowIfDisposed();
+                    var (_, modelParams) = await GetExecutorWithRetryAsync(modelIdentifier, cancellationToken);
+                    modelParams.Embeddings = true;
+
+                    if (!_loadedModels.TryGetValue(modelIdentifier, out var resources))
+                    {
+                        throw new InvalidOperationException($"Model resources not found for {modelIdentifier}");
+                    }
+
+                    using var embedder = new LLamaEmbedder(resources.Weights, modelParams);
+                    var embeddings = await embedder.GetEmbeddings(text);
+
+                    if (embeddings.Count == 0)
+                    {
+                        throw new InvalidOperationException("Failed to generate embeddings");
+                    }
+
+                    var result = embeddings[0];
+                    if (normalize)
+                    {
+                        NormalizeInPlace(result);
+                    }
+
+                    return result;
+                }
+                catch (Exception ex) when (
+                    ex is not OperationCanceledException &&
+                    ex is not ObjectDisposedException &&
+                    retryCount < MaxRetries)
+                {
+                    retryCount++;
+                    _logger.LogWarning(ex,
+                        "Embedding creation attempt {RetryCount} failed for model {ModelId}. Retrying...",
+                        retryCount, modelIdentifier);
+
+                    await CleanupFailedResourcesAsync(modelIdentifier);
+                    await Task.Delay(RetryDelay * retryCount, cancellationToken);
+                    continue;
+                }
+            }
+        }
+        finally
+        {
+            _inferLock.Release();
+        }
+    }
+
+    private static void NormalizeInPlace(float[] vector)
+    {
+        float magnitude = (float)Math.Sqrt(vector.Sum(x => x * x));
+        if (magnitude > 0)
+        {
+            for (int i = 0; i < vector.Length; i++)
+            {
+                vector[i] /= magnitude;
+            }
+        }
+    }
+
+    private async Task<(InteractiveExecutor Executor, ModelParams Parameters)> GetExecutorWithRetryAsync(
+        string modelIdentifier,
+        CancellationToken cancellationToken)
+    {
+        int retryCount = 0;
+        while (true)
         {
             try
             {
-                resources.Dispose();
-                _logger.LogInformation("Disposed resources for model {ModelId}", modelId);
+                return await GetExecutorAsync(modelIdentifier, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (
+                ex is not OperationCanceledException &&
+                ex is not ObjectDisposedException &&
+                retryCount < MaxRetries)
             {
-                _logger.LogError(ex, "Error disposing resources for model {ModelId}", modelId);
+                retryCount++;
+                _logger.LogWarning(ex,
+                    "Get executor attempt {RetryCount} failed for model {ModelId}. Retrying...",
+                    retryCount, modelIdentifier);
+
+                await Task.Delay(RetryDelay * retryCount, cancellationToken);
+                continue;
             }
+        }
+    }
+
+    private async Task CleanupFailedResourcesAsync(string modelIdentifier)
+    {
+        try
+        {
+            if (_executors.TryRemove(modelIdentifier, out _))
+            {
+                _logger.LogInformation("Removed failed executor for model {ModelId}", modelIdentifier);
+            }
+
+            if (_contexts.TryRemove(modelIdentifier, out var context))
+            {
+                try
+                {
+                    context.Dispose();
+                    _logger.LogInformation("Disposed failed context for model {ModelId}", modelIdentifier);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error disposing failed context for model {ModelId}", modelIdentifier);
+                }
+            }
+
+            if (_loadedModels.TryRemove(modelIdentifier, out var resources))
+            {
+                try
+                {
+                    resources.Dispose();
+                    _logger.LogInformation("Disposed failed resources for model {ModelId}", modelIdentifier);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error disposing failed resources for model {ModelId}", modelIdentifier);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during cleanup of failed resources for model {ModelId}", modelIdentifier);
         }
     }
 
@@ -106,6 +311,7 @@ public class LLMService : ILLMService, IAsyncDisposable
         ThrowIfDisposed();
         modelIdentifier = _modelManager.NormalizeModelIdentifier(modelIdentifier);
 
+        // 기존 실행기가 있으면 재사용
         if (_executors.TryGetValue(modelIdentifier, out var executor))
         {
             var modelInfo = await _modelManager.GetModelInfoAsync(modelIdentifier);
@@ -116,6 +322,7 @@ public class LLMService : ILLMService, IAsyncDisposable
             }
         }
 
+        // 새로운 실행기 생성
         var info = await _modelManager.GetModelInfoAsync(modelIdentifier);
         if (info?.State != LocalModelState.Loaded)
         {
@@ -129,120 +336,52 @@ public class LLMService : ILLMService, IAsyncDisposable
         }
 
         var modelParams = _backendService.GetOptimalModelParams(info.FullPath);
-        var context = new LLamaContext(weights, modelParams);
 
-        if (!_contexts.TryAdd(modelIdentifier, context))
-        {
-            context.Dispose();
-            throw new InvalidOperationException($"Failed to create context for model {modelIdentifier}");
-        }
-
-        executor = new InteractiveExecutor(context);
-        if (!_executors.TryAdd(modelIdentifier, executor))
-        {
-            throw new InvalidOperationException($"Failed to create executor for model {modelIdentifier}");
-        }
-
-        return (executor, modelParams);
-    }
-
-    public async Task<string> InferAsync(
-        string modelIdentifier,
-        string prompt,
-        InferenceParams? parameters = null,
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        var (executor, _) = await GetExecutorAsync(modelIdentifier, cancellationToken);
-        parameters ??= ParameterFactory.NewInferenceParams();
-
+        LLamaContext? context = null;
         try
         {
-            var result = new System.Text.StringBuilder();
-            await foreach (var text in executor.InferAsync(prompt, parameters).WithCancellation(cancellationToken))
+            // 컨텍스트 생성 시도
+            context = new LLamaContext(weights, modelParams);
+
+            if (!_contexts.TryAdd(modelIdentifier, context))
             {
-                result.Append(text);
+                throw new InvalidOperationException($"Failed to add context for model {modelIdentifier}");
             }
-            return result.ToString();
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
+
+            // 실행기 생성 시도 
+            executor = new InteractiveExecutor(context);
+
+            var finalExecutor = _executors.GetOrAdd(modelIdentifier, executor);
+
+            // 다른 스레드가 먼저 생성했다면 이 컨텍스트는 사용하지 않음
+            if (!ReferenceEquals(finalExecutor, executor))
+            {
+                context.Dispose();
+                context = null; // 중복 dispose 방지
+            }
+
+            return (finalExecutor, modelParams);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during inference for model {ModelIdentifier}", modelIdentifier);
-            throw;
-        }
-    }
-
-    public async IAsyncEnumerable<string> InferStreamAsync(
-        string modelIdentifier,
-        string prompt,
-        InferenceParams? parameters = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        var (executor, _) = await GetExecutorAsync(modelIdentifier, cancellationToken);
-        parameters ??= ParameterFactory.NewInferenceParams();
-
-        await foreach (var text in executor.InferAsync(prompt, parameters, cancellationToken)
-            .WithCancellation(cancellationToken))
-        {
-            yield return text;
-        }
-    }
-
-    public async Task<float[]> CreateEmbeddingAsync(
-        string modelIdentifier,
-        string text,
-        bool normalize = true,
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        var (_, modelParams) = await GetExecutorAsync(modelIdentifier, cancellationToken);
-        modelParams.Embeddings = true;
-
-        var resources = _loadedModels[modelIdentifier];
-        try
-        {
-            using var embedder = new LLamaEmbedder(resources.Weights, modelParams);
-            var embeddings = await embedder.GetEmbeddings(text);
-
-            if (normalize && embeddings.Count > 0)
+            // 리소스 정리
+            if (context != null)
             {
-                return NormalizeVector(embeddings[0]);
+                _contexts.TryRemove(modelIdentifier, out _);
+                context.Dispose();
             }
 
-            return embeddings[0];
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating embedding for model {ModelIdentifier}", modelIdentifier);
-            throw;
-        }
-    }
+            _logger.LogError(ex, "Failed to initialize executor for model {ModelIdentifier}", modelIdentifier);
 
-    private float[] NormalizeVector(float[] vector)
-    {
-        float magnitude = (float)Math.Sqrt(vector.Sum(x => x * x));
-        if (magnitude > 0)
-        {
-            for (int i = 0; i < vector.Length; i++)
+            if (ex is ExecutionEngineException)
             {
-                vector[i] /= magnitude;
+                throw new InvalidOperationException(
+                    "Critical error initializing LLama execution engine. This may indicate " +
+                    "incompatible model format or corrupted model file.", ex);
             }
-        }
-        return vector;
-    }
 
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, nameof(LLMService));
+            throw;
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -251,6 +390,7 @@ public class LLMService : ILLMService, IAsyncDisposable
 
         _disposed = true;
         _modelManager.ModelStateChanged -= OnModelStateChanged;
+        _inferLock.Dispose();
 
         var exceptions = new List<Exception>();
 
@@ -258,7 +398,7 @@ public class LLMService : ILLMService, IAsyncDisposable
         {
             try
             {
-                CleanupModelResources(modelId);
+                await CleanupModelResourcesAsync(modelId);
             }
             catch (Exception ex)
             {
@@ -272,15 +412,49 @@ public class LLMService : ILLMService, IAsyncDisposable
         _executors.Clear();
 
         if (exceptions.Count == 1)
-        {
             throw exceptions[0];
-        }
         else if (exceptions.Count > 1)
-        {
             throw new AggregateException("Multiple errors occurred during disposal", exceptions);
+    }
+
+    private async Task CleanupModelResourcesAsync(string modelId)
+    {
+        if (_executors.TryRemove(modelId, out _))
+        {
+            _logger.LogInformation("Removed executor for model {ModelId}", modelId);
         }
 
-        await Task.CompletedTask;
-        GC.SuppressFinalize(this);
+        if (_contexts.TryRemove(modelId, out var context))
+        {
+            try
+            {
+                context.Dispose();
+                _logger.LogInformation("Disposed context for model {ModelId}", modelId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing context for model {ModelId}", modelId);
+                throw;
+            }
+        }
+
+        if (_loadedModels.TryRemove(modelId, out var resources))
+        {
+            try
+            {
+                resources.Dispose();
+                _logger.LogInformation("Disposed resources for model {ModelId}", modelId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing resources for model {ModelId}", modelId);
+                throw;
+            }
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, nameof(LLMService));
     }
 }

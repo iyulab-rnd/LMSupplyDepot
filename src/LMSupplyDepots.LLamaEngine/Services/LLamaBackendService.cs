@@ -1,4 +1,5 @@
 ﻿using LLama.Common;
+using LMSupplyDepots.LLamaEngine.Models;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -9,7 +10,7 @@ public interface ILLamaBackendService
 {
     bool IsCudaAvailable { get; }
     bool IsVulkanAvailable { get; }
-    ModelParams GetOptimalModelParams(string modelPath);
+    ModelParams GetOptimalModelParams(string modelPath, ModelConfig? config = null);
 }
 
 public class LLamaBackendService : ILLamaBackendService
@@ -20,12 +21,101 @@ public class LLamaBackendService : ILLamaBackendService
     private bool _initialized;
     private readonly object _initLock = new();
 
+    // 기본 컨텍스트 크기 상수
+    private const uint DEFAULT_CONTEXT_SIZE = 2048;
+    private const uint MIN_CONTEXT_SIZE = 1024;
+    private const uint MAX_CONTEXT_SIZE = 8192;
+
     public bool IsCudaAvailable { get; private set; }
     public bool IsVulkanAvailable { get; private set; }
 
     public LLamaBackendService(ILogger<LLamaBackendService> logger)
     {
         _logger = logger;
+    }
+
+    public ModelParams GetOptimalModelParams(string modelPath, ModelConfig? config = null)
+    {
+        EnsureInitialized();
+
+        return _modelParams.GetOrAdd(modelPath, path =>
+        {
+            var gpuLayers = _gpuLayers ?? DetectGpuLayers();
+            _gpuLayers = gpuLayers;
+
+            var threads = Environment.ProcessorCount;
+            uint contextSize = DetermineOptimalContextSize(config);
+
+            var modelParams = new ModelParams(path)
+            {
+                ContextSize = contextSize,
+                BatchSize = DetermineOptimalBatchSize(contextSize),
+                Threads = threads,
+                GpuLayerCount = gpuLayers,
+                MainGpu = 0
+            };
+
+            _logger.LogInformation(
+                "Model parameters configured - ContextSize: {ContextSize}, BatchSize: {BatchSize}, Threads: {Threads}, GpuLayers: {GpuLayers}",
+                modelParams.ContextSize,
+                modelParams.BatchSize,
+                modelParams.Threads,
+                modelParams.GpuLayerCount);
+
+            return modelParams;
+        });
+    }
+
+    private uint DetermineOptimalContextSize(ModelConfig? config)
+    {
+        try
+        {
+            // 시스템 메모리 확인
+            var memInfo = GC.GetGCMemoryInfo();
+            var totalMemoryGB = memInfo.TotalAvailableMemoryBytes / (1024.0 * 1024.0 * 1024.0);
+
+            // 모델의 설정된 컨텍스트 크기 (없으면 기본값)
+            uint requestedSize = config?.ContextLength ?? DEFAULT_CONTEXT_SIZE;
+
+            // 사용 가능한 메모리에 따른 최대 허용 컨텍스트 크기
+            uint memoryBasedMaxSize = DetermineMemoryBasedContextSize(totalMemoryGB);
+
+            // 실제 사용할 컨텍스트 크기 결정
+            uint contextSize = Math.Min(requestedSize, memoryBasedMaxSize);
+            contextSize = Math.Max(contextSize, MIN_CONTEXT_SIZE);
+            contextSize = Math.Min(contextSize, MAX_CONTEXT_SIZE);
+
+            if (contextSize != requestedSize)
+            {
+                _logger.LogWarning(
+                    "Requested context size {RequestedSize} adjusted to {ActualSize} based on available memory ({MemoryGB:F1}GB)",
+                    requestedSize, contextSize, totalMemoryGB);
+            }
+
+            return contextSize;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error determining optimal context size, using default");
+            return Math.Min(config?.ContextLength ?? DEFAULT_CONTEXT_SIZE, MAX_CONTEXT_SIZE);
+        }
+    }
+
+    private uint DetermineMemoryBasedContextSize(double totalMemoryGB)
+    {
+        // 메모리 크기에 따른 최대 컨텍스트 크기 결정
+        if (totalMemoryGB >= 32) return 8192;
+        if (totalMemoryGB >= 16) return 4096;
+        if (totalMemoryGB >= 8) return 2048;
+        return 1024;
+    }
+
+    private uint DetermineOptimalBatchSize(uint contextSize)
+    {
+        // 컨텍스트 크기에 따른 배치 크기 조정
+        if (contextSize > 4096) return 1024;
+        if (contextSize > 2048) return 512;
+        return 256;
     }
 
     private void EnsureInitialized()

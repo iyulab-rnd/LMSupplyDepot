@@ -11,6 +11,7 @@ public interface ILLamaModelManager
     Task<LocalModelInfo?> LoadModelAsync(string filePath, string modelIdentifier);
     Task UnloadModelAsync(string modelIdentifier);
     LLamaWeights? GetModelWeights(string modelIdentifier);
+    ModelConfig? GetModelConfig(string modelIdentifier);
     Task<IReadOnlyList<LocalModelInfo>> GetLoadedModelsAsync();
     Task<LocalModelInfo?> GetModelInfoAsync(string modelIdentifier);
     string NormalizeModelIdentifier(string modelIdentifier);
@@ -20,7 +21,8 @@ public class LLamaModelManager : ILLamaModelManager
 {
     private readonly ILogger<LLamaModelManager> _logger;
     private readonly ConcurrentDictionary<string, LocalModelInfo> _localModels = new();
-    private readonly ConcurrentDictionary<string, LLamaWeights> _weights = new();
+    private readonly ConcurrentDictionary<string, ModelResources> _modelResources = new();
+    private readonly ConcurrentDictionary<string, ModelConfig> _modelConfigs = new();
     private readonly ILLamaBackendService _backendService;
 
     public event EventHandler<ModelStateChangedEventArgs>? ModelStateChanged;
@@ -57,9 +59,17 @@ public class LLamaModelManager : ILLamaModelManager
 
         try
         {
-            var parameters = _backendService.GetOptimalModelParams(filePath);
+            // Load model configuration
+            var config = modelInfo.LoadConfig(_logger);
+            _modelConfigs[modelIdentifier] = config;
+
+            // Get optimal parameters based on configuration
+            var parameters = _backendService.GetOptimalModelParams(filePath, config);
+
+            // Load weights with configured parameters
             var weights = await LLamaWeights.LoadFromFileAsync(parameters);
-            _weights[modelIdentifier] = weights;
+            var resources = new ModelResources(weights);
+            _modelResources[modelIdentifier] = resources;
 
             UpdateModelState(modelInfo, LocalModelState.Loaded);
             return modelInfo;
@@ -72,12 +82,21 @@ public class LLamaModelManager : ILLamaModelManager
         }
     }
 
+    public ModelConfig? GetModelConfig(string modelIdentifier)
+    {
+        _modelConfigs.TryGetValue(modelIdentifier, out var config);
+        return config;
+    }
+
     public LLamaWeights? GetModelWeights(string modelIdentifier)
     {
-        _weights.TryGetValue(modelIdentifier, out var weights);
-        return weights;
+        if (_modelResources.TryGetValue(modelIdentifier, out var resources))
+        {
+            return resources.Weights;
+        }
+        return null;
     }
-    
+
     private void UpdateModelState(LocalModelInfo modelInfo, LocalModelState newState)
     {
         var oldState = modelInfo.State;
@@ -88,6 +107,15 @@ public class LLamaModelManager : ILLamaModelManager
             modelInfo.ModelId,
             oldState,
             newState));
+
+        if (newState == LocalModelState.Unloaded)
+        {
+            if (_modelResources.TryRemove(modelInfo.ModelId, out var resources))
+            {
+                resources.Dispose();
+            }
+            _modelConfigs.TryRemove(modelInfo.ModelId, out _);
+        }
     }
 
     public async Task UnloadModelAsync(string modelIdentifier)
