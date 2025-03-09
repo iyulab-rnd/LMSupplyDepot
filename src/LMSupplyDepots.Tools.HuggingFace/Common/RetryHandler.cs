@@ -20,12 +20,6 @@ internal static class RetryHandler
     /// Executes an operation with retry logic.
     /// </summary>
     /// <typeparam name="T">The type of the result.</typeparam>
-    /// <param name="operation">The operation to execute.</param>
-    /// <param name="maxRetries">Maximum number of retry attempts.</param>
-    /// <param name="baseDelay">Base delay between retries in milliseconds.</param>
-    /// <param name="logger">Optional logger.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The result of the operation.</returns>
     public static async Task<T> ExecuteWithRetryAsync<T>(
         Func<Task<T>> operation,
         int maxRetries,
@@ -56,12 +50,7 @@ internal static class RetryHandler
     /// <summary>
     /// Executes an operation with retry logic.
     /// </summary>
-    /// <param name="operation">The operation to execute.</param>
-    /// <param name="maxRetries">Maximum number of retry attempts.</param>
-    /// <param name="baseDelay">Base delay between retries in milliseconds.</param>
-    /// <param name="logger">Optional logger.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task ExecuteWithRetryAsync(
+                        public static async Task ExecuteWithRetryAsync(
         Func<Task> operation,
         int maxRetries,
         int baseDelay,

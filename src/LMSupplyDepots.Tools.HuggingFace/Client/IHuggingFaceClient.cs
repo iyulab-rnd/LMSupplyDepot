@@ -12,13 +12,7 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Asynchronously searches for text generation models.
     /// </summary>
-    /// <param name="search">Optional search term</param>
-    /// <param name="filters">Optional additional filters to apply</param>
-    /// <param name="limit">Maximum number of results to return</param>
-    /// <param name="sortField">Field to sort results by</param>
-    /// <param name="descending">Whether to sort in descending order</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task<IReadOnlyList<HuggingFaceModel>> SearchTextGenerationModelsAsync(
+                            Task<IReadOnlyList<HuggingFaceModel>> SearchTextGenerationModelsAsync(
         string? search = null,
         string[]? filters = null,
         int limit = 5,
@@ -29,13 +23,7 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Asynchronously searches for embedding models.
     /// </summary>
-    /// <param name="search">Optional search term</param>
-    /// <param name="filters">Optional additional filters to apply</param>
-    /// <param name="limit">Maximum number of results to return</param>
-    /// <param name="sortField">Field to sort results by</param>
-    /// <param name="descending">Whether to sort in descending order</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task<IReadOnlyList<HuggingFaceModel>> SearchEmbeddingModelsAsync(
+                            Task<IReadOnlyList<HuggingFaceModel>> SearchEmbeddingModelsAsync(
         string? search = null,
         string[]? filters = null,
         int limit = 5,
@@ -66,11 +54,7 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Asynchronously downloads all files from a repository.
     /// </summary>
-    /// <param name="repoId">The repository ID</param>
-    /// <param name="outputDir">The directory where files will be saved</param>
-    /// <param name="useSubDir">Whether to create a subdirectory for the repository</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
+                    IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryAsync(
         string repoId,
         string outputDir,
         bool useSubDir = true,
@@ -79,12 +63,7 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Asynchronously downloads specified files from a repository.
     /// </summary>
-    /// <param name="repoId">The repository ID</param>
-    /// <param name="filePaths">The specific file paths to download</param>
-    /// <param name="outputDir">The directory where files will be saved</param>
-    /// <param name="useSubDir">Whether to create a subdirectory for the repository</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
+                        IAsyncEnumerable<RepoDownloadProgress> DownloadRepositoryFilesAsync(
         string repoId,
         IEnumerable<string> filePaths,
         string outputDir,
@@ -109,8 +88,5 @@ public interface IHuggingFaceClient : IDisposable
     /// <summary>
     /// Gets the download URL for a specific file in a repository.
     /// </summary>
-    /// <param name="repoId">The repository ID</param>
-    /// <param name="filePath">The file path within the repository</param>
-    /// <returns>The download URL for the file, or null if invalid parameters</returns>
     string? GetDownloadUrl(string repoId, string filePath);
 }

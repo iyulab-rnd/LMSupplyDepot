@@ -190,13 +190,9 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
                     var json = await response.Content.ReadAsStringAsync(cancellationToken);
                     var model = JsonSerializer.Deserialize<HuggingFaceModel>(json);
 
-                    if (model == null)
-                    {
-                        throw new HuggingFaceException(
+                    return model ?? throw new HuggingFaceException(
                             $"Model with repository ID '{repoId}' was not found.",
                             HttpStatusCode.NotFound);
-                    }
-                    return model;
                 },
                 _options.MaxRetries,
                 _options.RetryDelayMilliseconds,
@@ -621,6 +617,8 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
             _httpClient.Dispose();
             _disposed = true;
         }
+
+        GC.SuppressFinalize(this);
     }
 
     private static HttpClient CreateHttpClient(HuggingFaceClientOptions options)
@@ -653,9 +651,6 @@ public class HuggingFaceClient : IHuggingFaceClient, IRepositoryDownloader, IDis
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(HuggingFaceClient));
-        }
+        ObjectDisposedException.ThrowIf(_disposed, nameof(HuggingFaceClient));
     }
 }

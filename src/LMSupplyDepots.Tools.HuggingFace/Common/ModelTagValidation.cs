@@ -23,8 +23,6 @@ public static class ModelTagValidation
     /// <summary>
     /// Checks if the model is a text generation model based on its tags.
     /// </summary>
-    /// <param name="model">The model to check.</param>
-    /// <returns>True if the model is a text generation model, false otherwise.</returns>
     public static bool IsTextGenerationModel(HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -34,8 +32,6 @@ public static class ModelTagValidation
     /// <summary>
     /// Checks if the model is an embedding model based on its tags.
     /// </summary>
-    /// <param name="model">The model to check.</param>
-    /// <returns>True if the model is an embedding model, false otherwise.</returns>
     public static bool IsEmbeddingModel(HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -45,9 +41,6 @@ public static class ModelTagValidation
     /// <summary>
     /// Verifies that the model has the expected model type based on its tags.
     /// </summary>
-    /// <param name="model">The model to verify.</param>
-    /// <param name="expectedType">The expected model type (text generation or embedding).</param>
-    /// <returns>True if the model matches the expected type, false otherwise.</returns>
     public static bool VerifyModelType(HuggingFaceModel model, ModelType expectedType)
     {
         return expectedType switch

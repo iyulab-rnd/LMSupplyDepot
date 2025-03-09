@@ -42,8 +42,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Gets the paths of model weight files in the repository.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>An array of file paths matching the model weight pattern.</returns>
     public static string[] GetModelWeightPaths(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -53,8 +51,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Gets the paths of GGUF model files in the repository.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>An array of file paths matching the GGUF model pattern.</returns>
     public static string[] GetGgufModelPaths(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -64,8 +60,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Checks if the model has any GGUF format files.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>True if the model contains GGUF files, false otherwise.</returns>
     public static bool HasGgufFiles(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -75,8 +69,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Gets the paths of configuration files in the repository.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>An array of file paths matching the configuration file pattern.</returns>
     public static string[] GetConfigurationPaths(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -86,8 +78,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Gets the paths of tokenizer files in the repository.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>An array of file paths matching the tokenizer file pattern.</returns>
     public static string[] GetTokenizerPaths(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -97,8 +87,6 @@ public static class ModelFileFilters
     /// <summary>
     /// Gets the paths of essential model files (weights, configurations, and tokenizers) in the repository.
     /// </summary>
-    /// <param name="model">The HuggingFace model.</param>
-    /// <returns>An array of file paths for essential model files.</returns>
     public static string[] GetEssentialModelPaths(this HuggingFaceModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
