@@ -12,7 +12,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Lists threads
     /// </summary>
-    public async Task<ListResponse<ChatThread>> ListThreadsAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<ChatThread>> ListThreadsAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
@@ -27,7 +27,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Creates a new thread
     /// </summary>
-    public async Task<ChatThread> CreateThreadAsync(CreateThreadRequest request = null, CancellationToken cancellationToken = default)
+    public async Task<ChatThread> CreateThreadAsync(CreateThreadRequest? request = null, CancellationToken cancellationToken = default)
     {
         return await SendRequestAsync<ChatThread>(HttpMethod.Post, $"/{ApiVersion}/threads", request ?? CreateThreadRequest.Create(), cancellationToken);
     }

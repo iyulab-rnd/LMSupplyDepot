@@ -43,7 +43,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Lists assistants
     /// </summary>
-    public async Task<ListResponse<Assistant>> ListAssistantsAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<Assistant>> ListAssistantsAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();

@@ -26,7 +26,7 @@ public class OpenAIException : Exception
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIException"/> class
     /// </summary>
-    public OpenAIException(string message, HttpStatusCode statusCode, string errorType = null, string errorCode = null)
+    public OpenAIException(string message, HttpStatusCode statusCode, string? errorType = null, string? errorCode = null)
         : base(message)
     {
         StatusCode = statusCode;

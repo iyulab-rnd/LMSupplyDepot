@@ -8,7 +8,7 @@ public class JsonResponseFormat : BaseModel
     /// <summary>
     /// Creates a new JSON response format
     /// </summary>
-    public static JsonResponseFormat Create(object schema = null)
+    public static JsonResponseFormat Create(object? schema = null)
     {
         var format = new JsonResponseFormat();
         format.SetValue("type", "json_schema");

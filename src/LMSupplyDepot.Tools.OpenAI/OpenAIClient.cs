@@ -10,7 +10,7 @@ public class OpenAIClient : OpenAIBaseClient
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClient"/> class
     /// </summary>
-    public OpenAIClient(string apiKey, HttpClient httpClient = null)
+    public OpenAIClient(string apiKey, HttpClient? httpClient = null)
         : base(apiKey, httpClient)
     {
     }
@@ -270,7 +270,7 @@ public class OpenAIClient : OpenAIBaseClient
     /// <summary>
     /// Lists files
     /// </summary>
-    public async Task<dynamic> ListFilesAsync(string purpose = null, CancellationToken cancellationToken = default)
+    public async Task<dynamic> ListFilesAsync(string? purpose = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (!string.IsNullOrEmpty(purpose))

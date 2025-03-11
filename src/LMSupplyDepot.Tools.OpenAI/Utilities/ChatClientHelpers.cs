@@ -8,7 +8,7 @@ public static class ChatClientHelpers
     /// <summary>
     /// Creates a JSON response format for structured outputs
     /// </summary>
-    public static object CreateJsonResponseFormat(object schema = null)
+    public static object CreateJsonResponseFormat(object? schema = null)
     {
         var format = new Dictionary<string, object>
         {

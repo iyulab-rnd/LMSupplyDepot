@@ -18,7 +18,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Lists steps from a run
     /// </summary>
-    public async Task<ListResponse<RunStep>> ListRunStepsAsync(string threadId, string runId, int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<RunStep>> ListRunStepsAsync(string threadId, string runId, int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();

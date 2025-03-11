@@ -14,7 +14,7 @@ public class VectorStoreClient : OpenAIBaseClient
     /// <summary>
     /// Initializes a new instance of the <see cref="VectorStoreClient"/> class
     /// </summary>
-    public VectorStoreClient(string apiKey, HttpClient httpClient = null)
+    public VectorStoreClient(string apiKey, HttpClient? httpClient = null)
         : base(apiKey, httpClient)
     {
         SetupAssistantsApiHeader();
@@ -116,7 +116,7 @@ public class VectorStoreClient : OpenAIBaseClient
     /// <summary>
     /// Lists vector stores
     /// </summary>
-    public async Task<ListResponse<VectorStore>> ListVectorStoresAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStore>> ListVectorStoresAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
@@ -211,7 +211,7 @@ public class VectorStoreClient : OpenAIBaseClient
     /// <summary>
     /// Lists vector store files
     /// </summary>
-    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesAsync(string vectorStoreId, int? limit = null, string order = null, string after = null, string before = null, string filter = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesAsync(string vectorStoreId, int? limit = null, string? order = null, string? after = null, string? before = null, string? filter = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
@@ -306,7 +306,7 @@ public class VectorStoreClient : OpenAIBaseClient
     /// <summary>
     /// Lists vector store files in a batch
     /// </summary>
-    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesInBatchAsync(string vectorStoreId, string batchId, int? limit = null, string order = null, string after = null, string before = null, string filter = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesInBatchAsync(string vectorStoreId, string batchId, int? limit = null, string? order = null, string? after = null, string? before = null, string? filter = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();

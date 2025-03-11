@@ -51,7 +51,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Lists files
     /// </summary>
-    public async Task<dynamic> ListFilesAsync(string purpose = null, CancellationToken cancellationToken = default)
+    public async Task<dynamic> ListFilesAsync(string? purpose = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (!string.IsNullOrEmpty(purpose)) parameters["purpose"] = purpose;

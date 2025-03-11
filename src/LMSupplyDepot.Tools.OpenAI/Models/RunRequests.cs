@@ -49,7 +49,7 @@ public class CreateRunRequest : BaseRequest
     /// <summary>
     /// Adds the file search tool to this run
     /// </summary>
-    public CreateRunRequest WithFileSearchTool(int? maxNumResults = null, string ranker = null, double? scoreThreshold = null)
+    public CreateRunRequest WithFileSearchTool(int? maxNumResults = null, string? ranker = null, double? scoreThreshold = null)
     {
         var tools = GetValue<List<Tool>>(PropertyNames.Tools) ?? new List<Tool>();
         tools.Add(Tool.CreateFileSearchTool(maxNumResults, ranker, scoreThreshold));
@@ -168,7 +168,7 @@ public class CreateRunRequest : BaseRequest
     public CreateRunRequest ConfigureForFileSearch(
         List<string> vectorStoreIds,
         int? maxNumResults = null,
-        string ranker = null,
+        string? ranker = null,
         double? scoreThreshold = null)
     {
         // Add file search tool

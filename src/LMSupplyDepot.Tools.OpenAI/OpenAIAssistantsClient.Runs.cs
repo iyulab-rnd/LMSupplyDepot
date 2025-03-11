@@ -35,7 +35,7 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Lists runs in a thread
     /// </summary>
-    public async Task<ListResponse<Run>> ListRunsAsync(string threadId, int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<Run>> ListRunsAsync(string threadId, int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, string>();
         if (limit.HasValue) parameters["limit"] = limit.Value.ToString();

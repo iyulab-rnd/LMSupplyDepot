@@ -38,7 +38,7 @@ public class Tool : BaseModel
     /// <summary>
     /// Create a file search tool
     /// </summary>
-    public static Tool CreateFileSearchTool(int? maxNumResults = null, string ranker = null, double? scoreThreshold = null)
+    public static Tool CreateFileSearchTool(int? maxNumResults = null, string? ranker = null, double? scoreThreshold = null)
     {
         var tool = new Tool { Type = ToolTypes.FileSearch };
 

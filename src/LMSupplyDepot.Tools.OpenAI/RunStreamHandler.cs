@@ -176,7 +176,7 @@ public class RunStreamHandler : IDisposable
         {
             string line;
             StringBuilder eventData = new StringBuilder();
-            string eventName = null;
+            string? eventName = null;
 
             // 스트림을 한 줄씩 읽기
             while (!_cts.Token.IsCancellationRequested && !_reader.EndOfStream)

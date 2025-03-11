@@ -15,7 +15,7 @@ public abstract class OpenAIBaseClient
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIBaseClient"/> class
     /// </summary>
-    protected OpenAIBaseClient(string apiKey, HttpClient httpClient = null)
+    protected OpenAIBaseClient(string apiKey, HttpClient? httpClient = null)
     {
         if (string.IsNullOrEmpty(apiKey))
         {
@@ -44,7 +44,7 @@ public abstract class OpenAIBaseClient
     /// Sends a request to the OpenAI API
     /// </summary>
     /// <typeparam name="T">The type of the response</typeparam>
-    protected async Task<T> SendRequestAsync<T>(HttpMethod method, string endpoint, object requestBody = null, CancellationToken cancellationToken = default)
+    protected async Task<T> SendRequestAsync<T>(HttpMethod method, string endpoint, object? requestBody = null, CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}{endpoint}";
         var request = new HttpRequestMessage(method, url);
@@ -103,8 +103,8 @@ public abstract class OpenAIBaseClient
 
         var content = await response.Content.ReadAsStringAsync();
         var errorMessage = $"API error: {response.StatusCode}";
-        string errorType = null;
-        string errorCode = null;
+        string? errorType = null;
+        string? errorCode = null;
 
         try
         {

@@ -87,7 +87,7 @@ public class StreamHandler<T> : IStreamHandler<T>, IDisposable
 
             string line;
             StringBuilder eventData = new StringBuilder();
-            string eventName = null;
+            string? eventName = null;
 
             while (!_reader.EndOfStream && !_cts.Token.IsCancellationRequested)
             {

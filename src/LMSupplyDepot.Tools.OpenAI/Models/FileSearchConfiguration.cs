@@ -73,7 +73,7 @@ public class FileSearchConfiguration : BaseModel
     /// <summary>
     /// Creates a new file search configuration
     /// </summary>
-    public static FileSearchConfiguration Create(int? maxNumResults = null, string ranker = null, double? scoreThreshold = null)
+    public static FileSearchConfiguration Create(int? maxNumResults = null, string? ranker = null, double? scoreThreshold = null)
     {
         var config = new FileSearchConfiguration();
 
