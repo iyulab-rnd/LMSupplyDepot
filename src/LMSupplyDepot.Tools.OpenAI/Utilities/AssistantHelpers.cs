@@ -86,10 +86,9 @@ public static class AssistantHelpers
         }
 
         var textContentList = message.Content
-            .Where(c => c.Type == "text")
-            .Select(c => c.GetTextContent()?.Value)
-            .Where(text => !string.IsNullOrEmpty(text))
-            .ToList();
+            .FindAll(c => c.Type == "text")
+            .ConvertAll(c => c.Text?.Value)
+            .FindAll(text => !string.IsNullOrEmpty(text));
 
         return string.Join("\n", textContentList);
     }
@@ -105,11 +104,10 @@ public static class AssistantHelpers
         }
 
         return message.Content
-            .Where(c => c.Type == "image_file")
-            .Select(c => c.GetImageFileContent())
-            .Where(file => file != null)
-            .Cast<object>()
-            .ToList();
+            .FindAll(c => c.Type == "image_file")
+            .ConvertAll(c => c.ImageFile!)
+            .FindAll(file => file != null)
+            .ConvertAll(f => (object)f);
     }
 
     /// <summary>
@@ -122,7 +120,7 @@ public static class AssistantHelpers
             return string.Empty;
         }
 
-        var textContent = message.Content.FirstOrDefault(c => c.Type == "text")?.GetTextContent();
+        var textContent = message.Content.Find(c => c.Type == "text")?.Text;
         if (textContent == null)
         {
             return string.Empty;
@@ -146,8 +144,8 @@ public static class AssistantHelpers
             {
                 // Get file_citation using the flexible approach
                 var fileCitationObj = annotation.GetValue<Dictionary<string, JsonElement>>("file_citation");
-                string? fileId = null;
-                string? quote = null;
+                string fileId = null;
+                string quote = null;
 
                 if (fileCitationObj != null)
                 {
@@ -163,16 +161,23 @@ public static class AssistantHelpers
 
                 if (!string.IsNullOrEmpty(fileId))
                 {
-                    var file = await client.RetrieveFileAsync(fileId);
-                    string filename = JsonSerializer.Deserialize<JsonElement>(file.ToString()).GetProperty("filename").GetString();
-                    citations.Add($"[{i + 1}] {quote} (Source: {filename})");
+                    try
+                    {
+                        var file = await client.RetrieveFileAsync(fileId);
+                        string filename = JsonSerializer.Deserialize<JsonElement>(file.ToString()).GetProperty("filename").GetString();
+                        citations.Add($"[{i + 1}] {quote} (Source: {filename})");
+                    }
+                    catch (OpenAIException ex)
+                    {
+                        citations.Add($"[{i + 1}] {quote} (Source: File ID {fileId})");
+                    }
                 }
             }
             else if (annotation.Type == "file_path")
             {
                 // Get file_path using the flexible approach
                 var filePathObj = annotation.GetValue<Dictionary<string, JsonElement>>("file_path");
-                string? fileId = null;
+                string fileId = null;
 
                 if (filePathObj != null && filePathObj.TryGetValue("file_id", out var fileIdElement))
                 {
@@ -181,9 +186,16 @@ public static class AssistantHelpers
 
                 if (!string.IsNullOrEmpty(fileId))
                 {
-                    var file = await client.RetrieveFileAsync(fileId);
-                    string filename = JsonSerializer.Deserialize<JsonElement>(file.ToString()).GetProperty("filename").GetString();
-                    citations.Add($"[{i + 1}] File: {filename} (ID: {fileId})");
+                    try
+                    {
+                        var file = await client.RetrieveFileAsync(fileId);
+                        string filename = JsonSerializer.Deserialize<JsonElement>(file.ToString()).GetProperty("filename").GetString();
+                        citations.Add($"[{i + 1}] File: {filename} (ID: {fileId})");
+                    }
+                    catch (OpenAIException ex)
+                    {
+                        citations.Add($"[{i + 1}] File ID: {fileId}");
+                    }
                 }
             }
         }

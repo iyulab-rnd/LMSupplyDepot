@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Text.Json;
+
 namespace LMSupplyDepot.Tools.OpenAI.Models;
 
 /// <summary>
@@ -28,7 +30,7 @@ public class BaseModel
     /// <summary>
     /// Sets a value in the additional properties
     /// </summary>
-            public void SetValue(string key, object value)
+    public void SetValue(string key, object value)
     {
         var json = JsonSerializer.Serialize(value);
         var element = JsonSerializer.Deserialize<JsonElement>(json);

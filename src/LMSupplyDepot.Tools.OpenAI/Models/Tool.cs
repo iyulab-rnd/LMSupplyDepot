@@ -1,16 +1,6 @@
 ﻿namespace LMSupplyDepot.Tools.OpenAI.Models;
 
 /// <summary>
-/// Constants for tool types in the OpenAI API
-/// </summary>
-public static class ToolTypes
-{
-    public const string Function = "function";
-    public const string CodeInterpreter = "code_interpreter";
-    public const string FileSearch = "file_search";
-}
-
-/// <summary>
 /// Represents a tool that can be used by models in the OpenAI API
 /// </summary>
 public class Tool : BaseModel
@@ -48,7 +38,7 @@ public class Tool : BaseModel
     /// <summary>
     /// Create a file search tool
     /// </summary>
-    public static Tool CreateFileSearchTool(int? maxNumResults = null, string? ranker = null, double? scoreThreshold = null)
+    public static Tool CreateFileSearchTool(int? maxNumResults = null, string ranker = null, double? scoreThreshold = null)
     {
         var tool = new Tool { Type = ToolTypes.FileSearch };
 
@@ -98,79 +88,5 @@ public class Tool : BaseModel
     public Dictionary<string, object> GetFileSearch()
     {
         return GetValue<Dictionary<string, object>>("file_search");
-    }
-}
-
-/// <summary>
-/// Represents a tool call in a completion response
-/// </summary>
-public class ToolCall : BaseModel
-{
-    /// <summary>
-    /// The ID of the tool call
-    /// </summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; }
-
-    /// <summary>
-    /// The type of the tool call
-    /// </summary>
-    [JsonPropertyName("type")]
-    public string Type { get; set; }
-
-    /// <summary>
-    /// Gets the function call details
-    /// </summary>
-    public Dictionary<string, object> GetFunction()
-    {
-        return GetValue<Dictionary<string, object>>("function");
-    }
-
-    /// <summary>
-    /// Gets the function name
-    /// </summary>
-    public string GetFunctionName()
-    {
-        var function = GetFunction();
-        return function != null && function.ContainsKey("name") ? function["name"].ToString() : null;
-    }
-
-    /// <summary>
-    /// Gets the function arguments as a string
-    /// </summary>
-    public string GetFunctionArguments()
-    {
-        var function = GetFunction();
-        return function != null && function.ContainsKey("arguments") ? function["arguments"].ToString() : null;
-    }
-}
-
-/// <summary>
-/// Represents a tool output for submitting to a run
-/// </summary>
-public class ToolOutput : BaseModel
-{
-    /// <summary>
-    /// The ID of the tool call
-    /// </summary>
-    [JsonPropertyName("tool_call_id")]
-    public string ToolCallId { get; set; }
-
-    /// <summary>
-    /// The output of the tool call
-    /// </summary>
-    [JsonPropertyName("output")]
-    public string Output { get; set; }
-
-    /// <summary>
-    /// Creates a new ToolOutput with the specified tool call ID and output
-    /// </summary>
-    public static ToolOutput Create(string toolCallId, string output)
-    {
-        return new ToolOutput
-        {
-            ToolCallId = toolCallId,
-            Output = output
-        };
     }
 }

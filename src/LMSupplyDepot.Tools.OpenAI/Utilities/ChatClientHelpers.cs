@@ -1,7 +1,4 @@
-﻿using System.Numerics;
-using LMSupplyDepot.Tools.OpenAI.Models;
-
-namespace LMSupplyDepot.Tools.OpenAI.Utilities;
+﻿namespace LMSupplyDepot.Tools.OpenAI.Utilities;
 
 /// <summary>
 /// Helper methods for working with the OpenAI Chat API
@@ -11,7 +8,7 @@ public static class ChatClientHelpers
     /// <summary>
     /// Creates a JSON response format for structured outputs
     /// </summary>
-    public static object CreateJsonResponseFormat(object? schema = null)
+    public static object CreateJsonResponseFormat(object schema = null)
     {
         var format = new Dictionary<string, object>
         {
@@ -130,7 +127,7 @@ public static class ChatClientHelpers
             return embedding;
         }
 
-        return embedding.Take(dimensions).ToList();
+        return embedding.GetRange(0, dimensions);
     }
 
     /// <summary>

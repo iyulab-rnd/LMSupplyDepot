@@ -1,36 +1,23 @@
-﻿using System.Net.Http.Headers;
+﻿using System;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using LMSupplyDepot.Tools.OpenAI.Models;
 
 namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
 /// Client for interacting with the OpenAI Vector Stores API
 /// </summary>
-public class VectorStoreClient
+public class VectorStoreClient : OpenAIBaseClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly JsonSerializerOptions _jsonOptions;
-    private const string ApiVersion = "v1";
-    private const string BaseUrl = "https://api.openai.com";
-
     /// <summary>
     /// Initializes a new instance of the <see cref="VectorStoreClient"/> class
     /// </summary>
-            public VectorStoreClient(string apiKey, HttpClient? httpClient = null)
+    public VectorStoreClient(string apiKey, HttpClient httpClient = null)
+        : base(apiKey, httpClient)
     {
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty");
-        }
-
-        _httpClient = httpClient ?? new HttpClient();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        _httpClient.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
+        SetupAssistantsApiHeader();
     }
 
     #region Vector Stores
@@ -85,7 +72,7 @@ public class VectorStoreClient
             }
             else if (vectorStore.Status == VectorStoreStatus.Expired)
             {
-                throw new InvalidOperationException($"Vector store {vectorStoreId} has expired");
+                throw new OpenAIException($"Vector store {vectorStoreId} has expired", System.Net.HttpStatusCode.BadRequest, "vector_store_expired");
             }
             else
             {
@@ -122,22 +109,22 @@ public class VectorStoreClient
     /// </summary>
     public async Task<bool> DeleteVectorStoreAsync(string vectorStoreId, CancellationToken cancellationToken = default)
     {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/vector_stores/{vectorStoreId}", null, cancellationToken);
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/vector_stores/{vectorStoreId}", null, cancellationToken);
         return true;
     }
 
     /// <summary>
     /// Lists vector stores
     /// </summary>
-    public async Task<ListResponse<VectorStore>> ListVectorStoresAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStore>> ListVectorStoresAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<VectorStore>>(HttpMethod.Get, $"/{ApiVersion}/vector_stores{queryString}", null, cancellationToken);
     }
 
@@ -196,11 +183,13 @@ public class VectorStoreClient
             else if (file.Status == VectorStoreFileStatus.Failed)
             {
                 var error = file.GetLastError();
-                throw new InvalidOperationException($"Vector store file {fileId} failed: {error?.Code} - {error?.Message}");
+                throw new OpenAIException($"Vector store file {fileId} failed: {error?.Code} - {error?.Message}",
+                    System.Net.HttpStatusCode.BadRequest, "vector_store_file_failed", error?.Code);
             }
             else if (file.Status == VectorStoreFileStatus.Cancelled)
             {
-                throw new InvalidOperationException($"Vector store file {fileId} was cancelled");
+                throw new OpenAIException($"Vector store file {fileId} was cancelled",
+                    System.Net.HttpStatusCode.BadRequest, "vector_store_file_cancelled");
             }
 
             attempts++;
@@ -215,23 +204,23 @@ public class VectorStoreClient
     /// </summary>
     public async Task<bool> DeleteVectorStoreFileAsync(string vectorStoreId, string fileId, CancellationToken cancellationToken = default)
     {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/vector_stores/{vectorStoreId}/files/{fileId}", null, cancellationToken);
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/vector_stores/{vectorStoreId}/files/{fileId}", null, cancellationToken);
         return true;
     }
 
     /// <summary>
     /// Lists vector store files
     /// </summary>
-    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesAsync(string vectorStoreId, int? limit = null, string? order = null, string? after = null, string? before = null, string? filter = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesAsync(string vectorStoreId, int? limit = null, string order = null, string after = null, string before = null, string filter = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-        if (!string.IsNullOrEmpty(filter)) queryParams.Add($"filter={filter}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
+        if (!string.IsNullOrEmpty(filter)) parameters["filter"] = filter;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<VectorStoreFile>>(HttpMethod.Get, $"/{ApiVersion}/vector_stores/{vectorStoreId}/files{queryString}", null, cancellationToken);
     }
 
@@ -290,11 +279,13 @@ public class VectorStoreClient
             }
             else if (batch.Status == VectorStoreFileStatus.Failed)
             {
-                throw new InvalidOperationException($"Vector store file batch {batchId} failed");
+                throw new OpenAIException($"Vector store file batch {batchId} failed",
+                    System.Net.HttpStatusCode.BadRequest, "vector_store_file_batch_failed");
             }
             else if (batch.Status == VectorStoreFileStatus.Cancelled)
             {
-                throw new InvalidOperationException($"Vector store file batch {batchId} was cancelled");
+                throw new OpenAIException($"Vector store file batch {batchId} was cancelled",
+                    System.Net.HttpStatusCode.BadRequest, "vector_store_file_batch_cancelled");
             }
 
             attempts++;
@@ -315,41 +306,22 @@ public class VectorStoreClient
     /// <summary>
     /// Lists vector store files in a batch
     /// </summary>
-    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesInBatchAsync(string vectorStoreId, string batchId, int? limit = null, string? order = null, string? after = null, string? before = null, string? filter = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<VectorStoreFile>> ListVectorStoreFilesInBatchAsync(string vectorStoreId, string batchId, int? limit = null, string order = null, string after = null, string before = null, string filter = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-        if (!string.IsNullOrEmpty(filter)) queryParams.Add($"filter={filter}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
+        if (!string.IsNullOrEmpty(filter)) parameters["filter"] = filter;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<VectorStoreFile>>(HttpMethod.Get, $"/{ApiVersion}/vector_stores/{vectorStoreId}/file_batches/{batchId}/files{queryString}", null, cancellationToken);
     }
 
     #endregion
 
     #region Convenience Methods
-
-    /// <summary>
-    /// Uploads a file and adds it to a vector store in one operation
-    /// </summary>
-    public async Task<VectorStoreFile> UploadAndAddFileAsync(
-        string vectorStoreId,
-        string filePath,
-        OpenAIAssistantsClient assistantsClient,
-        CancellationToken cancellationToken = default)
-    {
-        // Upload the file using OpenAIAssistantsClient instead of OpenAIClient
-        var fileResponse = await assistantsClient.UploadFileAsync(filePath, "assistants", cancellationToken);
-
-        // Extract the file ID from the response
-        string fileId = JsonSerializer.Deserialize<JsonElement>(fileResponse.ToString()).GetProperty("id").GetString();
-
-        // Add it to the vector store
-        return await CreateAndPollVectorStoreFileAsync(vectorStoreId, CreateVectorStoreFileRequest.Create(fileId), cancellationToken: cancellationToken);
-    }
 
     /// <summary>
     /// Creates a vector store with files in one operation
@@ -362,83 +334,25 @@ public class VectorStoreClient
     }
 
     /// <summary>
-    /// Uploads files and creates a vector store with them in one operation
+    /// Uploads files and creates a vector store with them in one operation using an OpenAIClient
     /// </summary>
     public async Task<VectorStore> UploadFilesAndCreateVectorStoreAsync(
         string name,
         List<string> filePaths,
-        OpenAIAssistantsClient assistantsClient,
+        OpenAIClient client,
         CancellationToken cancellationToken = default)
     {
-        // Upload all files using OpenAIAssistantsClient instead of OpenAIClient
+        // Upload all files
         var fileIds = new List<string>();
         foreach (var filePath in filePaths)
         {
-            var fileResponse = await assistantsClient.UploadFileAsync(filePath, "assistants", cancellationToken);
+            var fileResponse = await client.UploadFileAsync(filePath, "assistants", cancellationToken);
             string fileId = JsonSerializer.Deserialize<JsonElement>(fileResponse.ToString()).GetProperty("id").GetString();
             fileIds.Add(fileId);
         }
 
         // Create the vector store with the files
         return await CreateVectorStoreWithFilesAsync(name, fileIds, cancellationToken);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Sends a request to the OpenAI API
-    /// </summary>
-    /// <typeparam name="T">The type of the response</typeparam>
-    private async Task<T> SendRequestAsync<T>(HttpMethod method, string endpoint, object? requestBody = null, CancellationToken cancellationToken = default)
-    {
-        var url = $"{BaseUrl}{endpoint}";
-        var request = new HttpRequestMessage(method, url);
-
-        if (requestBody != null)
-        {
-            var json = JsonSerializer.Serialize(requestBody, _jsonOptions);
-            request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-        }
-
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessStatusCodeAsync(response);
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<T>(responseContent, _jsonOptions);
-    }
-
-    /// <summary>
-    /// Ensures that the response has a success status code, otherwise throws an exception with details
-    /// </summary>
-    private async Task EnsureSuccessStatusCodeAsync(HttpResponseMessage response)
-    {
-        if (response.IsSuccessStatusCode)
-        {
-            return;
-        }
-
-        var content = await response.Content.ReadAsStringAsync();
-        var errorMessage = $"API error: {response.StatusCode}";
-
-        try
-        {
-            var errorResponse = JsonSerializer.Deserialize<JsonElement>(content);
-            if (errorResponse.TryGetProperty("error", out var error))
-            {
-                if (error.TryGetProperty("message", out var message))
-                {
-                    errorMessage = $"API error: {response.StatusCode} - {message}";
-                }
-            }
-        }
-        catch
-        {
-            // If we can't parse the error, just use the status code
-        }
-
-        throw new HttpRequestException(errorMessage, null, response.StatusCode);
     }
 
     #endregion

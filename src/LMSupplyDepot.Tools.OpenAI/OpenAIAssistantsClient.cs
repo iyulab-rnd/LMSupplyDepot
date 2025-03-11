@@ -1,37 +1,19 @@
-﻿using System.Net.Http.Headers;
-using ChatThread = LMSupplyDepot.Tools.OpenAI.Models.ChatThread;
+﻿using ChatThread = LMSupplyDepot.Tools.OpenAI.Models.ChatThread;
 
 namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
 /// Client for interacting with the OpenAI Assistants API
 /// </summary>
-public class OpenAIAssistantsClient
+public partial class OpenAIAssistantsClient : OpenAIBaseClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly JsonSerializerOptions _jsonOptions;
-    private const string ApiVersion = "v1";
-    private const string BaseUrl = "https://api.openai.com";
-
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIAssistantsClient"/> class
     /// </summary>
-     public OpenAIAssistantsClient(string apiKey, HttpClient? httpClient = null)
+    public OpenAIAssistantsClient(string apiKey, HttpClient httpClient = null)
+        : base(apiKey, httpClient)
     {
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty");
-        }
-
-        _httpClient = httpClient ?? new HttpClient();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        _httpClient.DefaultRequestHeaders.Add("OpenAI-Beta", "assistants=v2");
-
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
+        SetupAssistantsApiHeader();
     }
 
     #region Assistants
@@ -65,22 +47,22 @@ public class OpenAIAssistantsClient
     /// </summary>
     public async Task<bool> DeleteAssistantAsync(string assistantId, CancellationToken cancellationToken = default)
     {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/assistants/{assistantId}", null, cancellationToken);
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/assistants/{assistantId}", null, cancellationToken);
         return true;
     }
 
     /// <summary>
     /// Lists assistants
     /// </summary>
-    public async Task<ListResponse<Assistant>> ListAssistantsAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<Assistant>> ListAssistantsAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<Assistant>>(HttpMethod.Get, $"/{ApiVersion}/assistants{queryString}", null, cancellationToken);
     }
 
@@ -91,22 +73,22 @@ public class OpenAIAssistantsClient
     /// <summary>
     /// Lists threads
     /// </summary>
-    public async Task<ListResponse<ChatThread>> ListThreadsAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<ChatThread>> ListThreadsAsync(int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<ChatThread>>(HttpMethod.Get, $"/{ApiVersion}/threads{queryString}", null, cancellationToken);
     }
 
     /// <summary>
     /// Creates a new thread
     /// </summary>
-    public async Task<ChatThread> CreateThreadAsync(CreateThreadRequest? request = null, CancellationToken cancellationToken = default)
+    public async Task<ChatThread> CreateThreadAsync(CreateThreadRequest request = null, CancellationToken cancellationToken = default)
     {
         return await SendRequestAsync<ChatThread>(HttpMethod.Post, $"/{ApiVersion}/threads", request ?? CreateThreadRequest.Create(), cancellationToken);
     }
@@ -132,7 +114,7 @@ public class OpenAIAssistantsClient
     /// </summary>
     public async Task<bool> DeleteThreadAsync(string threadId, CancellationToken cancellationToken = default)
     {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/threads/{threadId}", null, cancellationToken);
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/threads/{threadId}", null, cancellationToken);
         return true;
     }
 
@@ -168,201 +150,17 @@ public class OpenAIAssistantsClient
     /// <summary>
     /// Lists messages in a thread
     /// </summary>
-    public async Task<ListResponse<Message>> ListMessagesAsync(string threadId, int? limit = null, string? order = null, string? after = null, string? before = null, string? runId = null, CancellationToken cancellationToken = default)
+    public async Task<ListResponse<Message>> ListMessagesAsync(string threadId, int? limit = null, string order = null, string after = null, string before = null, string runId = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-        if (!string.IsNullOrEmpty(runId)) queryParams.Add($"run_id={runId}");
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
+        if (!string.IsNullOrEmpty(runId)) parameters["run_id"] = runId;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<ListResponse<Message>>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/messages{queryString}", null, cancellationToken);
-    }
-
-    #endregion
-
-    #region Runs
-
-    /// <summary>
-    /// Creates a new run for a thread
-    /// </summary>
-    public async Task<Run> CreateRunAsync(string threadId, CreateRunRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs", request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates a simple run for a thread with an assistant
-    /// </summary>
-    public async Task<Run> CreateSimpleRunAsync(string threadId, string assistantId, CancellationToken cancellationToken = default)
-    {
-        var request = CreateRunRequest.Create(assistantId);
-        return await CreateRunAsync(threadId, request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Retrieves a run from a thread
-    /// </summary>
-    public async Task<Run> RetrieveRunAsync(string threadId, string runId, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<Run>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Lists runs in a thread
-    /// </summary>
-    public async Task<ListResponse<Run>> ListRunsAsync(string threadId, int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
-    {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
-        return await SendRequestAsync<ListResponse<Run>>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs{queryString}", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Cancels a run
-    /// </summary>
-    public async Task<Run> CancelRunAsync(string threadId, string runId, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/cancel", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Submits tool outputs to a run that requires action
-    /// </summary>
-    public async Task<Run> SubmitToolOutputsAsync(string threadId, string runId, SubmitToolOutputsRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/submit_tool_outputs", request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Waits for a run to complete, polling at the specified interval
-    /// </summary>
-    public async Task<Run> WaitForRunCompletionAsync(string threadId, string runId, int pollIntervalMs = 1000, int maxAttempts = 0, CancellationToken cancellationToken = default)
-    {
-        var attempts = 0;
-        while (maxAttempts == 0 || attempts < maxAttempts)
-        {
-            var run = await RetrieveRunAsync(threadId, runId, cancellationToken);
-            switch (run.Status)
-            {
-                case RunStatus.Completed:
-                case RunStatus.Failed:
-                case RunStatus.Cancelled:
-                case RunStatus.Expired:
-                case RunStatus.Incomplete:
-                    return run;
-                case RunStatus.RequiresAction:
-                    throw new InvalidOperationException("Run requires action. Use SubmitToolOutputsAsync to provide tool outputs.");
-                default:
-                    attempts++;
-                    await Task.Delay(pollIntervalMs, cancellationToken);
-                    break;
-            }
-        }
-
-        throw new TimeoutException($"Run did not complete after {maxAttempts} polling attempts.");
-    }
-
-    #endregion
-
-    #region Run Steps
-
-    /// <summary>
-    /// Retrieves a run step from a run
-    /// </summary>
-    public async Task<RunStep> RetrieveRunStepAsync(string threadId, string runId, string stepId, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<RunStep>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/steps/{stepId}", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Lists steps from a run
-    /// </summary>
-    public async Task<ListResponse<RunStep>> ListRunStepsAsync(string threadId, string runId, int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
-    {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
-        return await SendRequestAsync<ListResponse<RunStep>>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/steps{queryString}", null, cancellationToken);
-    }
-
-    #endregion
-
-    #region Vector Stores
-
-    /// <summary>
-    /// Creates a new vector store
-    /// </summary>
-    public async Task<VectorStore> CreateVectorStoreAsync(CreateVectorStoreRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<VectorStore>(HttpMethod.Post, $"/{ApiVersion}/vector_stores", request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Retrieves a vector store
-    /// </summary>
-    public async Task<VectorStore> RetrieveVectorStoreAsync(string vectorStoreId, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<VectorStore>(HttpMethod.Get, $"/{ApiVersion}/vector_stores/{vectorStoreId}", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Updates a vector store
-    /// </summary>
-    public async Task<VectorStore> UpdateVectorStoreAsync(string vectorStoreId, UpdateVectorStoreRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<VectorStore>(HttpMethod.Post, $"/{ApiVersion}/vector_stores/{vectorStoreId}", request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Deletes a vector store
-    /// </summary>
-    public async Task<bool> DeleteVectorStoreAsync(string vectorStoreId, CancellationToken cancellationToken = default)
-    {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/vector_stores/{vectorStoreId}", null, cancellationToken);
-        return true;
-    }
-
-    /// <summary>
-    /// Lists vector stores
-    /// </summary>
-    public async Task<ListResponse<VectorStore>> ListVectorStoresAsync(int? limit = null, string? order = null, string? after = null, string? before = null, CancellationToken cancellationToken = default)
-    {
-        var queryParams = new List<string>();
-        if (limit.HasValue) queryParams.Add($"limit={limit.Value}");
-        if (!string.IsNullOrEmpty(order)) queryParams.Add($"order={order}");
-        if (!string.IsNullOrEmpty(after)) queryParams.Add($"after={after}");
-        if (!string.IsNullOrEmpty(before)) queryParams.Add($"before={before}");
-
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
-        return await SendRequestAsync<ListResponse<VectorStore>>(HttpMethod.Get, $"/{ApiVersion}/vector_stores{queryString}", null, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates a new file in a vector store
-    /// </summary>
-    public async Task<dynamic> CreateVectorStoreFileAsync(string vectorStoreId, CreateVectorStoreFileRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<dynamic>(HttpMethod.Post, $"/{ApiVersion}/vector_stores/{vectorStoreId}/files", request, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates a batch of files in a vector store
-    /// </summary>
-    public async Task<dynamic> CreateVectorStoreFileBatchAsync(string vectorStoreId, CreateVectorStoreFileBatchRequest request, CancellationToken cancellationToken = default)
-    {
-        return await SendRequestAsync<dynamic>(HttpMethod.Post, $"/{ApiVersion}/vector_stores/{vectorStoreId}/file_batches", request, cancellationToken);
     }
 
     #endregion
@@ -413,12 +211,12 @@ public class OpenAIAssistantsClient
     /// <summary>
     /// Lists files
     /// </summary>
-    public async Task<dynamic> ListFilesAsync(string? purpose = null, CancellationToken cancellationToken = default)
+    public async Task<dynamic> ListFilesAsync(string purpose = null, CancellationToken cancellationToken = default)
     {
-        var queryParams = new List<string>();
-        if (!string.IsNullOrEmpty(purpose)) queryParams.Add($"purpose={purpose}");
+        var parameters = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(purpose)) parameters["purpose"] = purpose;
 
-        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
+        var queryString = BuildQueryString(parameters);
         return await SendRequestAsync<dynamic>(HttpMethod.Get, $"/{ApiVersion}/files{queryString}", null, cancellationToken);
     }
 
@@ -427,67 +225,124 @@ public class OpenAIAssistantsClient
     /// </summary>
     public async Task<bool> DeleteFileAsync(string fileId, CancellationToken cancellationToken = default)
     {
-        var response = await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/files/{fileId}", null, cancellationToken);
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/files/{fileId}", null, cancellationToken);
         return true;
     }
 
     #endregion
 
-    #region Helper Methods
+    #region Runs
 
     /// <summary>
-    /// Sends a request to the OpenAI API
+    /// Creates a new run for a thread
     /// </summary>
-    /// <typeparam name="T">The type of the response</typeparam>
-    private async Task<T> SendRequestAsync<T>(HttpMethod method, string endpoint, object? requestBody = null, CancellationToken cancellationToken = default)
+    public async Task<Run> CreateRunAsync(string threadId, CreateRunRequest request, CancellationToken cancellationToken = default)
     {
-        var url = $"{BaseUrl}{endpoint}";
-        var request = new HttpRequestMessage(method, url);
-
-        if (requestBody != null)
-        {
-            var json = JsonSerializer.Serialize(requestBody, _jsonOptions);
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        }
-
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessStatusCodeAsync(response);
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<T>(responseContent, _jsonOptions);
+        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs", request, cancellationToken);
     }
 
+    /// <summary>
+    /// Creates a simple run for a thread with an assistant
+    /// </summary>
+    public async Task<Run> CreateSimpleRunAsync(string threadId, string assistantId, CancellationToken cancellationToken = default)
+    {
+        var request = CreateRunRequest.Create(assistantId);
+        return await CreateRunAsync(threadId, request, cancellationToken);
+    }
 
     /// <summary>
-    /// Ensures that the response has a success status code, otherwise throws an exception with details
+    /// Retrieves a run from a thread
     /// </summary>
-    private async Task EnsureSuccessStatusCodeAsync(HttpResponseMessage response)
+    public async Task<Run> RetrieveRunAsync(string threadId, string runId, CancellationToken cancellationToken = default)
     {
-        if (response.IsSuccessStatusCode)
-        {
-            return;
-        }
+        return await SendRequestAsync<Run>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}", null, cancellationToken);
+    }
 
-        var content = await response.Content.ReadAsStringAsync();
-        var errorMessage = $"API error: {response.StatusCode}";
+    /// <summary>
+    /// Lists runs in a thread
+    /// </summary>
+    public async Task<ListResponse<Run>> ListRunsAsync(string threadId, int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    {
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
 
-        try
+        var queryString = BuildQueryString(parameters);
+        return await SendRequestAsync<ListResponse<Run>>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs{queryString}", null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Cancels a run
+    /// </summary>
+    public async Task<Run> CancelRunAsync(string threadId, string runId, CancellationToken cancellationToken = default)
+    {
+        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/cancel", null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Submits tool outputs to a run that requires action
+    /// </summary>
+    public async Task<Run> SubmitToolOutputsAsync(string threadId, string runId, SubmitToolOutputsRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendRequestAsync<Run>(HttpMethod.Post, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/submit_tool_outputs", request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Waits for a run to complete, polling at the specified interval
+    /// </summary>
+    public async Task<Run> WaitForRunCompletionAsync(string threadId, string runId, int pollIntervalMs = 1000, int maxAttempts = 0, CancellationToken cancellationToken = default)
+    {
+        var attempts = 0;
+        while (maxAttempts == 0 || attempts < maxAttempts)
         {
-            var errorResponse = JsonSerializer.Deserialize<JsonElement>(content);
-            if (errorResponse.TryGetProperty("error", out var error))
+            var run = await RetrieveRunAsync(threadId, runId, cancellationToken);
+            switch (run.Status)
             {
-                if (error.TryGetProperty("message", out var message))
-                {
-                    errorMessage = $"API error: {response.StatusCode} - {message}";
-                }
+                case RunStatus.Completed:
+                case RunStatus.Failed:
+                case RunStatus.Cancelled:
+                case RunStatus.Expired:
+                case RunStatus.Incomplete:
+                    return run;
+                case RunStatus.RequiresAction:
+                    throw new OpenAIException("Run requires action. Use SubmitToolOutputsAsync to provide tool outputs.", System.Net.HttpStatusCode.BadRequest, "run_requires_action");
+                default:
+                    attempts++;
+                    await Task.Delay(pollIntervalMs, cancellationToken);
+                    break;
             }
         }
-        catch
-        {
-            // If we can't parse the error, just use the status code
-        }
 
-        throw new HttpRequestException(errorMessage, null, response.StatusCode);
+        throw new TimeoutException($"Run did not complete after {maxAttempts} polling attempts.");
+    }
+
+    #endregion
+
+    #region Run Steps
+
+    /// <summary>
+    /// Retrieves a run step from a run
+    /// </summary>
+    public async Task<RunStep> RetrieveRunStepAsync(string threadId, string runId, string stepId, CancellationToken cancellationToken = default)
+    {
+        return await SendRequestAsync<RunStep>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/steps/{stepId}", null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists steps from a run
+    /// </summary>
+    public async Task<ListResponse<RunStep>> ListRunStepsAsync(string threadId, string runId, int? limit = null, string order = null, string after = null, string before = null, CancellationToken cancellationToken = default)
+    {
+        var parameters = new Dictionary<string, string>();
+        if (limit.HasValue) parameters["limit"] = limit.Value.ToString();
+        if (!string.IsNullOrEmpty(order)) parameters["order"] = order;
+        if (!string.IsNullOrEmpty(after)) parameters["after"] = after;
+        if (!string.IsNullOrEmpty(before)) parameters["before"] = before;
+
+        var queryString = BuildQueryString(parameters);
+        return await SendRequestAsync<ListResponse<RunStep>>(HttpMethod.Get, $"/{ApiVersion}/threads/{threadId}/runs/{runId}/steps{queryString}", null, cancellationToken);
     }
 
     #endregion
@@ -524,7 +379,7 @@ public class OpenAIAssistantsClient
 
         if (run.Status != RunStatus.Completed)
         {
-            throw new InvalidOperationException($"Run did not complete successfully. Status: {run.Status}");
+            throw new OpenAIException($"Run did not complete successfully. Status: {run.Status}", System.Net.HttpStatusCode.BadRequest, "run_incomplete");
         }
 
         var messagesResponse = await ListMessagesAsync(threadId, order: "desc", limit: 1, cancellationToken: cancellationToken);
@@ -539,6 +394,6 @@ public class OpenAIAssistantsClient
         var (thread, _, run) = await CreateThreadAndRunAsync(assistantId, userMessage, cancellationToken);
         return await GetAssistantResponseAsync(thread.Id, run.Id, pollIntervalMs, maxAttempts, cancellationToken);
     }
-
+    
     #endregion
 }

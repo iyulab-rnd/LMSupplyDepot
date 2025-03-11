@@ -5,14 +5,14 @@
 /// </summary>
 public class ModelExplorer
 {
-    private readonly OpenAIClient _chatClient;
+    private readonly OpenAIClient _client;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModelExplorer"/> class
     /// </summary>
-        public ModelExplorer(OpenAIClient chatClient)
+    public ModelExplorer(OpenAIClient client)
     {
-        _chatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
+        _client = client ?? throw new System.ArgumentNullException(nameof(client));
     }
 
     /// <summary>
@@ -20,7 +20,7 @@ public class ModelExplorer
     /// </summary>
     public async Task<ListModelsResponse> ListAllModelsAsync(CancellationToken cancellationToken = default)
     {
-        return await _chatClient.ListModelsAsync(cancellationToken);
+        return await _client.ListModelsAsync(cancellationToken);
     }
 
     /// <summary>
@@ -28,8 +28,8 @@ public class ModelExplorer
     /// </summary>
     public async Task<List<ModelInfo>> GetModelsByFamilyAsync(string family, CancellationToken cancellationToken = default)
     {
-        var models = await _chatClient.ListModelsAsync(cancellationToken);
-        return models.Data.Where(m => m.Family == family).ToList();
+        var models = await _client.ListModelsAsync(cancellationToken);
+        return models.Data.FindAll(m => m.Family == family);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public class ModelExplorer
     /// </summary>
     public async Task<ModelInfo> GetModelDetailsAsync(string modelId, CancellationToken cancellationToken = default)
     {
-        return await _chatClient.RetrieveModelAsync(modelId, cancellationToken);
+        return await _client.RetrieveModelAsync(modelId, cancellationToken);
     }
 
     /// <summary>
@@ -73,14 +73,14 @@ public class ModelExplorer
                      "Please recommend the most suitable model and explain why it's the best fit. " +
                      "Only recommend from the following model options: gpt-4o, gpt-4o-mini, o1, o1-mini, o3-mini, text-embedding-3-small, text-embedding-3-large.";
 
-        var response = await _chatClient.CreateSimpleChatCompletionAsync("gpt-4o-mini", prompt, cancellationToken);
-        var modelName = ExtractModelNameFromSuggestion(_chatClient.GetCompletionText(response));
+        var response = await _client.CreateSimpleChatCompletionAsync("gpt-4o-mini", prompt, cancellationToken);
+        var modelName = ExtractModelNameFromSuggestion(_client.GetCompletionText(response));
 
         if (!string.IsNullOrEmpty(modelName))
         {
             try
             {
-                return await _chatClient.RetrieveModelAsync(modelName, cancellationToken);
+                return await _client.RetrieveModelAsync(modelName, cancellationToken);
             }
             catch
             {
@@ -107,7 +107,7 @@ public class ModelExplorer
             modelInfo.MaxOutputTokens = 16384;
             modelInfo.Description = "GPT-4o ('o' for 'omni') is a versatile, high-intelligence flagship model.";
         }
-        else if (modelId.StartsWith('o'))
+        else if (modelId.StartsWith("o"))
         {
             modelInfo.Family = ModelFamilies.Reasoning;
             modelInfo.ContextWindow = 200000;

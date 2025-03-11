@@ -45,7 +45,7 @@ class Program
         );
 
         // 응답 출력
-        Console.WriteLine(chatClient.GetCompletionText(completion));
+        Debug.WriteLine(chatClient.GetCompletionText(completion));
     }
 }
 ```
@@ -56,7 +56,6 @@ class Program
 using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -110,7 +109,7 @@ class Program
                 {
                     // 함수 인자 파싱
                     var args = toolCall.GetFunctionArguments();
-                    Console.WriteLine($"함수 호출: {toolCall.GetFunctionName()}, 인자: {args}");
+                    Debug.WriteLine($"함수 호출: {toolCall.GetFunctionName()}, 인자: {args}");
 
                     // 여기서 실제 날씨 정보를 가져오는 로직 구현
                     // ...
@@ -137,7 +136,7 @@ class Program
                         toolOutputs
                     );
 
-                    Console.WriteLine(chatClient.GetCompletionText(followUpCompletion));
+                    Debug.WriteLine(chatClient.GetCompletionText(followUpCompletion));
                 }
             }
         }
@@ -152,7 +151,6 @@ using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using LMSupplyDepot.Tools.OpenAI.Utilities;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -180,7 +178,7 @@ class Program
         var completion = await chatClient.CreateChatCompletionAsync(request);
 
         // 응답 출력
-        Console.WriteLine(chatClient.GetCompletionText(completion));
+        Debug.WriteLine(chatClient.GetCompletionText(completion));
     }
 }
 ```
@@ -192,7 +190,6 @@ using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using LMSupplyDepot.Tools.OpenAI.Utilities;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -217,7 +214,7 @@ class Program
         var completion = await chatClient.CreateChatCompletionAsync(request);
 
         // 응답 출력
-        Console.WriteLine(chatClient.GetCompletionText(completion));
+        Debug.WriteLine(chatClient.GetCompletionText(completion));
     }
 }
 ```
@@ -229,7 +226,6 @@ using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using LMSupplyDepot.Tools.OpenAI.Utilities;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -261,7 +257,7 @@ class Program
         var completion = await chatClient.CreateChatCompletionAsync(request);
 
         // 응답 출력
-        Console.WriteLine(chatClient.GetCompletionText(completion));
+        Debug.WriteLine(chatClient.GetCompletionText(completion));
     }
 }
 ```
@@ -290,7 +286,7 @@ class Program
         // 임베딩 벡터 가져오기
         var embeddingVector = chatClient.GetEmbeddingVector(embeddingsResponse);
         
-        Console.WriteLine($"임베딩 차원 수: {embeddingVector.Count}");
+        Debug.WriteLine($"임베딩 차원 수: {embeddingVector.Count}");
         
         // 차원 수 지정하여 임베딩 생성 (짧은 임베딩)
         var shorterEmbeddingsResponse = await chatClient.CreateEmbeddingAsync(
@@ -300,7 +296,7 @@ class Program
         );
         
         var shorterVector = chatClient.GetEmbeddingVector(shorterEmbeddingsResponse);
-        Console.WriteLine($"축소된 임베딩 차원 수: {shorterVector.Count}");
+        Debug.WriteLine($"축소된 임베딩 차원 수: {shorterVector.Count}");
         
         // 임베딩으로 의미적 유사도 계산
         var secondEmbeddingsResponse = await chatClient.CreateEmbeddingAsync(
@@ -311,7 +307,7 @@ class Program
         var secondVector = chatClient.GetEmbeddingVector(secondEmbeddingsResponse);
         
         double similarity = ChatClientHelpers.CosineSimilarity(embeddingVector, secondVector);
-        Console.WriteLine($"텍스트 유사도: {similarity}");
+        Debug.WriteLine($"텍스트 유사도: {similarity}");
     }
 }
 ```
@@ -333,22 +329,22 @@ class Program
 
         // 모든 모델 목록 가져오기
         var models = await modelExplorer.ListAllModelsAsync();
-        Console.WriteLine($"사용 가능한 모델 수: {models.Data.Count}");
+        Debug.WriteLine($"사용 가능한 모델 수: {models.Data.Count}");
 
         // GPT 모델만 가져오기
         var gptModels = await modelExplorer.GetGptModelsAsync();
-        Console.WriteLine("\nGPT 모델:");
+        Debug.WriteLine("\nGPT 모델:");
         foreach (var model in gptModels)
         {
-            Console.WriteLine($"- {model.Id}: {model.Description}");
+            Debug.WriteLine($"- {model.Id}: {model.Description}");
         }
 
         // 임베딩 모델만 가져오기
         var embeddingModels = await modelExplorer.GetEmbeddingsModelsAsync();
-        Console.WriteLine("\n임베딩 모델:");
+        Debug.WriteLine("\n임베딩 모델:");
         foreach (var model in embeddingModels)
         {
-            Console.WriteLine($"- {model.Id}: {model.Description}");
+            Debug.WriteLine($"- {model.Id}: {model.Description}");
         }
 
         // 작업에 맞는 모델 추천 받기
@@ -356,9 +352,9 @@ class Program
             "한국어와 영어가 혼합된 고객 리뷰 데이터에서 감정 분석을 수행해야 합니다."
         );
 
-        Console.WriteLine($"\n추천 모델: {suggestedModel.Id}");
-        Console.WriteLine($"모델 설명: {suggestedModel.Description}");
-        Console.WriteLine($"컨텍스트 윈도우: {suggestedModel.ContextWindow} 토큰");
+        Debug.WriteLine($"\n추천 모델: {suggestedModel.Id}");
+        Debug.WriteLine($"모델 설명: {suggestedModel.Description}");
+        Debug.WriteLine($"컨텍스트 윈도우: {suggestedModel.ContextWindow} 토큰");
     }
 }
 ```
@@ -370,7 +366,6 @@ using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using LMSupplyDepot.Tools.OpenAI.Utilities;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -388,7 +383,7 @@ class Program
                 .WithTools(new List<Tool> { Tool.CreateCodeInterpreterTool() })
         );
 
-        Console.WriteLine($"Assistant created with ID: {assistant.Id}");
+        Debug.WriteLine($"Assistant created with ID: {assistant.Id}");
 
         // Thread 생성 및 메시지 추가
         var thread = await assistantsClient.CreateThreadAsync();
@@ -407,8 +402,8 @@ class Program
         var assistantMessage = messages.Data[0];
         
         // 응답 출력
-        Console.WriteLine("Assistant's response:");
-        Console.WriteLine(AssistantHelpers.GetMessageText(assistantMessage));
+        Debug.WriteLine("Assistant's response:");
+        Debug.WriteLine(AssistantHelpers.GetMessageText(assistantMessage));
     }
 }
 ```
@@ -420,7 +415,6 @@ using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using LMSupplyDepot.Tools.OpenAI.Utilities;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -436,7 +430,7 @@ class Program
         );
 
         // 응답 출력
-        Console.WriteLine(AssistantHelpers.GetMessageText(assistantMessage));
+        Debug.WriteLine(AssistantHelpers.GetMessageText(assistantMessage));
 
         // 또는 풍부한 대화 기록 가져오기
         var messages = await AssistantHelpers.RunConversationAsync(
@@ -452,8 +446,8 @@ class Program
         // 전체 대화 출력
         foreach (var msg in messages)
         {
-            Console.WriteLine($"{msg.Role}: {AssistantHelpers.GetMessageText(msg)}");
-            Console.WriteLine("---");
+            Debug.WriteLine($"{msg.Role}: {AssistantHelpers.GetMessageText(msg)}");
+            Debug.WriteLine("---");
         }
     }
 }
@@ -465,7 +459,6 @@ class Program
 using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -477,7 +470,7 @@ class Program
         
         // Vector Store 생성
         var vectorStore = await vectorStoreClient.CreateVectorStoreAsync("My Knowledge Base");
-        Console.WriteLine($"Vector Store created with ID: {vectorStore.Id}");
+        Debug.WriteLine($"Vector Store created with ID: {vectorStore.Id}");
         
         // 파일 업로드 및 Vector Store에 추가 (OpenAIAssistantsClient 필요)
         var assistantsClient = new OpenAIAssistantsClient("your-api-key-here");
@@ -489,7 +482,7 @@ class Program
             assistantsClient
         );
         
-        Console.WriteLine($"File added to Vector Store with ID: {vectorStoreFile.Id}");
+        Debug.WriteLine($"File added to Vector Store with ID: {vectorStoreFile.Id}");
         
         // 여러 파일 업로드 및 새 Vector Store 생성
         var filePaths = new List<string> { 
@@ -504,16 +497,16 @@ class Program
             assistantsClient
         );
         
-        Console.WriteLine($"New Vector Store with multiple files created: {newVectorStore.Id}");
-        Console.WriteLine($"Total files: {newVectorStore.GetFileCounts().Total}");
+        Debug.WriteLine($"New Vector Store with multiple files created: {newVectorStore.Id}");
+        Debug.WriteLine($"Total files: {newVectorStore.GetFileCounts().Total}");
         
         // Vector Store 목록 가져오기
         var vectorStores = await vectorStoreClient.ListVectorStoresAsync(limit: 10);
         
-        Console.WriteLine("\nAvailable Vector Stores:");
+        Debug.WriteLine("\nAvailable Vector Stores:");
         foreach (var store in vectorStores.Data)
         {
-            Console.WriteLine($"- {store.Name} (ID: {store.Id}, Status: {store.Status})");
+            Debug.WriteLine($"- {store.Name} (ID: {store.Id}, Status: {store.Status})");
         }
         
         // 일괄 파일 업로드 (File Batch)
@@ -526,7 +519,7 @@ class Program
             batch.Id
         );
         
-        Console.WriteLine($"Batch processing completed: {batch.FileCounts.Completed} of {batch.FileCounts.Total} files processed");
+        Debug.WriteLine($"Batch processing completed: {batch.FileCounts.Completed} of {batch.FileCounts.Total} files processed");
         
         // Vector Store를 사용하는 Assistant 생성
         assistant = await assistantsClient.CreateAssistantWithFileSearchAsync(
@@ -536,7 +529,7 @@ class Program
             "Document Expert"
         );
         
-        Console.WriteLine($"Created an assistant with Vector Store: {assistant.Id}");
+        Debug.WriteLine($"Created an assistant with Vector Store: {assistant.Id}");
     }
 }
 ```
@@ -547,7 +540,6 @@ class Program
 using LMSupplyDepot.Tools.OpenAI;
 using LMSupplyDepot.Tools.OpenAI.Models;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 class Program
@@ -602,8 +594,8 @@ class Program
             assistantsClient
         );
         
-        Console.WriteLine("Response with citations:");
-        Console.WriteLine(responseWithCitations);
+        Debug.WriteLine("Response with citations:");
+        Debug.WriteLine(responseWithCitations);
     }
 }
 ```
@@ -640,7 +632,7 @@ class Program
             request
         );
         
-        Console.WriteLine($"File processed with static chunking strategy: {file.Status}");
+        Debug.WriteLine($"File processed with static chunking strategy: {file.Status}");
         
         // 3. 자동 청킹 전략으로 파일 배치 업로드
         var fileIds = new List<string> { "file-def456", "file-ghi789" }; // 이미 업로드된 파일 ID
@@ -653,8 +645,8 @@ class Program
             batchRequest
         );
         
-        Console.WriteLine($"Batch processed with auto chunking strategy: {batch.Status}");
-        Console.WriteLine($"Completed: {batch.FileCounts.Completed}, Failed: {batch.FileCounts.Failed}");
+        Debug.WriteLine($"Batch processed with auto chunking strategy: {batch.Status}");
+        Debug.WriteLine($"Completed: {batch.FileCounts.Completed}, Failed: {batch.FileCounts.Failed}");
         
         // 4. Vector Store 만료 정책 설정
         var updateRequest = UpdateVectorStoreRequest.Create()
@@ -662,7 +654,7 @@ class Program
         
         await vectorStoreClient.UpdateVectorStoreAsync(vectorStore.Id, updateRequest);
         
-        Console.WriteLine("Vector Store updated with expiration policy");
+        Debug.WriteLine("Vector Store updated with expiration policy");
     }
 }
 ```

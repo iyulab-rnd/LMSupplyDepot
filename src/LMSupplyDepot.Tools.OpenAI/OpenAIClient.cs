@@ -1,37 +1,18 @@
-﻿using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+﻿using System.Diagnostics;
 
 namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
 /// Client for interacting with the OpenAI Chat API
 /// </summary>
-public class OpenAIClient
+public class OpenAIClient : OpenAIBaseClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly JsonSerializerOptions _jsonOptions;
-    private const string ApiVersion = "v1";
-    private const string BaseUrl = "https://api.openai.com";
-
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClient"/> class
     /// </summary>
-            public OpenAIClient(string apiKey, HttpClient? httpClient = null)
+    public OpenAIClient(string apiKey, HttpClient httpClient = null)
+        : base(apiKey, httpClient)
     {
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty");
-        }
-
-        _httpClient = httpClient ?? new HttpClient();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
     }
 
     #region Models
@@ -100,13 +81,13 @@ public class OpenAIClient
         var url = $"{BaseUrl}/{ApiVersion}/chat/completions";
         var requestJson = JsonSerializer.Serialize(request, _jsonOptions);
 
-        // HTTP 요청 직접 구성
+        // Configure HTTP request directly
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
         };
 
-        // HTTP 요청 전송 및 스트림 처리
+        // Send HTTP request and process stream
         using var response = await _httpClient.SendAsync(
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
@@ -117,7 +98,7 @@ public class OpenAIClient
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream);
 
-        while (!reader.EndOfStream)
+        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync();
             if (string.IsNullOrEmpty(line))
@@ -139,8 +120,8 @@ public class OpenAIClient
                 }
                 catch (JsonException ex)
                 {
-                    // 디버깅을 위해 오류 로깅 추가
-                    Console.WriteLine($"JSON 파싱 오류: {ex.Message}, 데이터: {data}");
+                    // Add logging for debugging
+                    Debug.WriteLine($"JSON parsing error: {ex.Message}, Data: {data}");
                     // Skip malformed JSON
                 }
             }
@@ -189,9 +170,6 @@ public class OpenAIClient
         List<ToolOutput> toolOutputs,
         CancellationToken cancellationToken = default)
     {
-        // Add the last assistant message
-        var lastAssistantMessage = messages.LastOrDefault(m => m.Role == MessageRoles.Assistant);
-
         // Add a new user message with tool outputs
         var toolOutputsMessage = new ChatMessage { Role = MessageRoles.User };
         toolOutputsMessage.SetValue("tool_outputs", toolOutputs);
@@ -246,60 +224,71 @@ public class OpenAIClient
 
     #endregion
 
-    #region Helper Methods
+    #region Files
 
     /// <summary>
-    /// Sends a request to the OpenAI API
+    /// Uploads a file to OpenAI
     /// </summary>
-    /// <typeparam name="T">The type of the response</typeparam>
-    private async Task<T> SendRequestAsync<T>(HttpMethod method, string endpoint, object? requestBody = null, CancellationToken cancellationToken = default)
+    public async Task<dynamic> UploadFileAsync(string filePath, string purpose, CancellationToken cancellationToken = default)
     {
-        var url = $"{BaseUrl}{endpoint}";
-        var request = new HttpRequestMessage(method, url);
+        var content = new MultipartFormDataContent();
+        content.Add(new StringContent(purpose), "purpose");
 
-        if (requestBody != null)
-        {
-            var json = JsonSerializer.Serialize(requestBody, _jsonOptions);
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        }
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+        var fileContent = new StreamContent(fileStream);
+        var fileName = Path.GetFileName(filePath);
+        content.Add(fileContent, "file", fileName);
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
+        var url = $"{BaseUrl}/{ApiVersion}/files";
+        var response = await _httpClient.PostAsync(url, content, cancellationToken);
         await EnsureSuccessStatusCodeAsync(response);
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<T>(responseContent, _jsonOptions);
+        return JsonSerializer.Deserialize<dynamic>(responseContent, _jsonOptions);
     }
 
     /// <summary>
-    /// Ensures that the response has a success status code, otherwise throws an exception with details
+    /// Retrieves a file
     /// </summary>
-    private async Task EnsureSuccessStatusCodeAsync(HttpResponseMessage response)
+    public async Task<dynamic> RetrieveFileAsync(string fileId, CancellationToken cancellationToken = default)
     {
-        if (response.IsSuccessStatusCode)
+        return await SendRequestAsync<dynamic>(HttpMethod.Get, $"/{ApiVersion}/files/{fileId}", null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Retrieves the content of a file
+    /// </summary>
+    public async Task<Stream> RetrieveFileContentAsync(string fileId, CancellationToken cancellationToken = default)
+    {
+        var url = $"{BaseUrl}/{ApiVersion}/files/{fileId}/content";
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        await EnsureSuccessStatusCodeAsync(response);
+
+        return await response.Content.ReadAsStreamAsync();
+    }
+
+    /// <summary>
+    /// Lists files
+    /// </summary>
+    public async Task<dynamic> ListFilesAsync(string purpose = null, CancellationToken cancellationToken = default)
+    {
+        var parameters = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(purpose))
         {
-            return;
+            parameters["purpose"] = purpose;
         }
 
-        var content = await response.Content.ReadAsStringAsync();
-        var errorMessage = $"API error: {response.StatusCode}";
+        var queryString = BuildQueryString(parameters);
+        return await SendRequestAsync<dynamic>(HttpMethod.Get, $"/{ApiVersion}/files{queryString}", null, cancellationToken);
+    }
 
-        try
-        {
-            var errorResponse = JsonSerializer.Deserialize<JsonElement>(content);
-            if (errorResponse.TryGetProperty("error", out var error))
-            {
-                if (error.TryGetProperty("message", out var message))
-                {
-                    errorMessage = $"API error: {response.StatusCode} - {message}";
-                }
-            }
-        }
-        catch
-        {
-            // If we can't parse the error, just use the status code
-        }
-
-        throw new HttpRequestException(errorMessage, null, response.StatusCode);
+    /// <summary>
+    /// Deletes a file
+    /// </summary>
+    public async Task<bool> DeleteFileAsync(string fileId, CancellationToken cancellationToken = default)
+    {
+        await SendRequestAsync<dynamic>(HttpMethod.Delete, $"/{ApiVersion}/files/{fileId}", null, cancellationToken);
+        return true;
     }
 
     #endregion
