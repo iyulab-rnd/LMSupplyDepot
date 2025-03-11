@@ -52,4 +52,27 @@ public class BaseModel
     {
         return AdditionalProperties.Remove(key);
     }
+
+    /// <summary>
+    /// Tries to get a property value and convert it to the specified type.
+    /// </summary>
+    public bool TryGetProperty<T>(string key, out T value)
+    {
+        if (AdditionalProperties.TryGetValue(key, out JsonElement element))
+        {
+            try
+            {
+                value = JsonSerializer.Deserialize<T>(element.GetRawText());
+                return true;
+            }
+            catch
+            {
+                value = default;
+                return false;
+            }
+        }
+
+        value = default;
+        return false;
+    }
 }

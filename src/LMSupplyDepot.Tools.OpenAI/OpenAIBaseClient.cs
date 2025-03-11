@@ -160,7 +160,7 @@ public abstract class OpenAIBaseClient
     /// <summary>
     /// Gets the API key from the authorization header
     /// </summary>
-    protected string GetApiKey()
+    public string GetApiKey()
     {
         return _httpClient.DefaultRequestHeaders.Authorization!.Parameter;
     }
