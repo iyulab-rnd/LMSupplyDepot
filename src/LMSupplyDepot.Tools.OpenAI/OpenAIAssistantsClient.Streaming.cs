@@ -1,10 +1,12 @@
 ﻿namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
-/// Extension methods for OpenAIAssistantsClient to support streaming
+/// Client for interacting with the OpenAI Assistants API - Streaming functionality
 /// </summary>
 public partial class OpenAIAssistantsClient
 {
+    #region Streaming
+
     /// <summary>
     /// Creates a run handler for streaming using Server-Sent Events (SSE)
     /// </summary>
@@ -36,4 +38,6 @@ public partial class OpenAIAssistantsClient
 
         return (thread.Id, streamHandler);
     }
+
+    #endregion
 }
