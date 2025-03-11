@@ -157,8 +157,11 @@ public abstract class OpenAIBaseClient
         return queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
     }
 
-    protected string GetApKey()
+    /// <summary>
+    /// Gets the API key from the authorization header
+    /// </summary>
+    protected string GetApiKey()
     {
-        return _httpClient.DefaultRequestHeaders.Authorization!.ToString().Replace("Bearer ", "");
+        return _httpClient.DefaultRequestHeaders.Authorization!.Parameter;
     }
 }

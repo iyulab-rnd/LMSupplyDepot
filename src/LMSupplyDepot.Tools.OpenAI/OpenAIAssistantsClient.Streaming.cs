@@ -16,27 +16,27 @@ public partial class OpenAIAssistantsClient
         CancellationToken cancellationToken = default)
     {
         // Create a new stream handler with the API key
-        return new RunStreamHandler(this, this.GetApKey(), threadId, assistantId);
+        return new RunStreamHandler(this, this.GetApiKey(), threadId, assistantId);
     }
 
     /// <summary>
-    /// Creates a thread, adds a message, and prepares a streaming run in one operation
+    /// Creates a run handler for streaming with specified tools and tool resources
     /// </summary>
-    public async System.Threading.Tasks.Task<(string ThreadId, RunStreamHandler StreamHandler)> CreateThreadWithMessageAndPrepareStreamingRunAsync(
+    public RunStreamHandler PrepareStreamingRunWithTools(
+        string threadId,
         string assistantId,
-        string userMessage,
+        List<Tool> tools = null,
+        Dictionary<string, object> toolResources = null,
         CancellationToken cancellationToken = default)
     {
-        // Create a thread with the initial message
-        var createThreadRequest = CreateThreadRequest.Create()
-            .WithMessages(new System.Collections.Generic.List<CreateMessageRequest> { CreateMessageRequest.Create(userMessage) });
-
-        var thread = await CreateThreadAsync(createThreadRequest, cancellationToken);
-
-        // Create a streaming handler for the thread
-        var streamHandler = PrepareStreamingRun(thread.Id, assistantId, cancellationToken);
-
-        return (thread.Id, streamHandler);
+        // Create a new stream handler with configuration
+        return new RunStreamHandler(
+            this,
+            this.GetApiKey(),
+            threadId,
+            assistantId,
+            tools,
+            toolResources);
     }
 
     #endregion

@@ -12,6 +12,12 @@ public class MessageAttachment : BaseModel
     public string FileId { get; set; }
 
     /// <summary>
+    /// The tools to add this file to
+    /// </summary>
+    [JsonPropertyName("tools")]
+    public List<AttachmentTool> Tools { get; set; }
+
+    /// <summary>
     /// Creates a new message attachment with the specified file ID
     /// </summary>
     public static MessageAttachment Create(string fileId)
@@ -22,18 +28,65 @@ public class MessageAttachment : BaseModel
     /// <summary>
     /// Sets the tools for this attachment
     /// </summary>
-    public MessageAttachment WithTools(List<Tool> tools)
+    public MessageAttachment WithTools(List<AttachmentTool> tools)
     {
-        SetValue("tools", tools);
+        Tools = tools;
         return this;
     }
 
     /// <summary>
-    /// Sets the file search tool for this attachment
+    /// Adds the file search tool to this attachment
     /// </summary>
     public MessageAttachment WithFileSearchTool()
     {
-        var tools = new List<Tool> { Tool.CreateFileSearchTool() };
-        return WithTools(tools);
+        if (Tools == null)
+        {
+            Tools = new List<AttachmentTool>();
+        }
+
+        Tools.Add(AttachmentTool.CreateFileSearchTool());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds the code interpreter tool to this attachment
+    /// </summary>
+    public MessageAttachment WithCodeInterpreterTool()
+    {
+        if (Tools == null)
+        {
+            Tools = new List<AttachmentTool>();
+        }
+
+        Tools.Add(AttachmentTool.CreateCodeInterpreterTool());
+        return this;
+    }
+}
+
+/// <summary>
+/// Represents a tool definition for an attachment
+/// </summary>
+public class AttachmentTool : BaseModel
+{
+    /// <summary>
+    /// The type of tool being defined
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; }
+
+    /// <summary>
+    /// Creates a file search tool
+    /// </summary>
+    public static AttachmentTool CreateFileSearchTool()
+    {
+        return new AttachmentTool { Type = ToolTypes.FileSearch };
+    }
+
+    /// <summary>
+    /// Creates a code interpreter tool
+    /// </summary>
+    public static AttachmentTool CreateCodeInterpreterTool()
+    {
+        return new AttachmentTool { Type = ToolTypes.CodeInterpreter };
     }
 }

@@ -8,6 +8,8 @@ public class RunStreamHandler : IDisposable
     private readonly string _threadId;
     private readonly string _assistantId;
     private readonly string _apiKey;
+    private readonly List<Tool> _tools;
+    private readonly Dictionary<string, object> _toolResources;
     private HttpClient _httpClient;
     private CancellationTokenSource _cts;
     private bool _isStarted = false;
@@ -38,10 +40,26 @@ public class RunStreamHandler : IDisposable
         string apiKey,
         string threadId,
         string assistantId)
+        : this(client, apiKey, threadId, assistantId, null, null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new RunStreamHandler for SSE streaming with specified tools and tool resources
+    /// </summary>
+    internal RunStreamHandler(
+        OpenAIAssistantsClient client,
+        string apiKey,
+        string threadId,
+        string assistantId,
+        List<Tool> tools = null,
+        Dictionary<string, object> toolResources = null)
     {
         _threadId = threadId ?? throw new ArgumentNullException(nameof(threadId));
         _assistantId = assistantId ?? throw new ArgumentNullException(nameof(assistantId));
         _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
+        _tools = tools;
+        _toolResources = toolResources;
         _httpClient = new HttpClient();
         _cts = new CancellationTokenSource();
 
@@ -71,15 +89,29 @@ public class RunStreamHandler : IDisposable
             // 스트리밍 모드로 런을 생성하고 응답을 바로 스트림으로 처리
             var url = $"https://api.openai.com/v1/threads/{_threadId}/runs";
 
-            var content = new
+            // 기본 요청 본문
+            var contentObj = new Dictionary<string, object>
             {
-                assistant_id = _assistantId,
-                stream = true // 스트리밍 활성화
+                { "assistant_id", _assistantId },
+                { "stream", true } // 스트리밍 활성화
             };
 
-            var jsonContent = JsonSerializer.Serialize(content, new JsonSerializerOptions
+            // 도구 추가
+            if (_tools != null && _tools.Count > 0)
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                contentObj["tools"] = _tools;
+            }
+
+            // 도구 리소스 추가
+            if (_toolResources != null && _toolResources.Count > 0)
+            {
+                contentObj["tool_resources"] = _toolResources;
+            }
+
+            var jsonContent = JsonSerializer.Serialize(contentObj, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
 
             var request = new HttpRequestMessage(HttpMethod.Post, url)
@@ -102,6 +134,7 @@ public class RunStreamHandler : IDisposable
             }
 
             Debug.WriteLine($"[RunStreamHandler] Creating streaming run for thread: {_threadId}");
+            Debug.WriteLine($"[RunStreamHandler] Request content: {jsonContent}");
 
             // 응답을 스트림으로 받기
             var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _cts.Token);
