@@ -1,10 +1,4 @@
-﻿using System;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using LMSupplyDepot.Tools.OpenAI.Models;
-
-namespace LMSupplyDepot.Tools.OpenAI;
+﻿namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
 /// Client for interacting with the OpenAI Vector Stores API
@@ -333,6 +327,7 @@ public class VectorStoreClient : OpenAIBaseClient
         return await CreateAndPollVectorStoreAsync(request, cancellationToken: cancellationToken);
     }
 
+
     /// <summary>
     /// Uploads files and creates a vector store with them in one operation using an OpenAIClient
     /// </summary>
@@ -347,12 +342,43 @@ public class VectorStoreClient : OpenAIBaseClient
         foreach (var filePath in filePaths)
         {
             var fileResponse = await client.UploadFileAsync(filePath, "assistants", cancellationToken);
-            string fileId = JsonSerializer.Deserialize<JsonElement>(fileResponse.ToString()).GetProperty("id").GetString();
-            fileIds.Add(fileId);
+            fileIds.Add(fileResponse.Id);
         }
 
         // Create the vector store with the files
         return await CreateVectorStoreWithFilesAsync(name, fileIds, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a vector store with static chunking strategy
+    /// </summary>
+    public async Task<VectorStore> CreateVectorStoreWithStaticChunkingAsync(
+        string name,
+        List<string> fileIds,
+        int maxChunkSizeTokens,
+        int chunkOverlapTokens,
+        CancellationToken cancellationToken = default)
+    {
+        var request = CreateVectorStoreRequest.Create(name)
+            .WithFileIds(fileIds)
+            .WithStaticChunkingStrategy(maxChunkSizeTokens, chunkOverlapTokens);
+
+        return await CreateAndPollVectorStoreAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a vector store with auto chunking strategy
+    /// </summary>
+    public async Task<VectorStore> CreateVectorStoreWithAutoChunkingAsync(
+        string name,
+        List<string> fileIds,
+        CancellationToken cancellationToken = default)
+    {
+        var request = CreateVectorStoreRequest.Create(name)
+            .WithFileIds(fileIds)
+            .WithAutoChunkingStrategy();
+
+        return await CreateAndPollVectorStoreAsync(request, cancellationToken: cancellationToken);
     }
 
     #endregion

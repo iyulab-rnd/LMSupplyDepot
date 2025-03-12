@@ -109,30 +109,6 @@ public class CodeInterpreterDelta : BaseModel
 }
 
 /// <summary>
-/// Class representing code interpreter output
-/// </summary>
-public class CodeInterpreterOutput : BaseModel
-{
-    /// <summary>
-    /// Output type
-    /// </summary>
-    [JsonPropertyName("type")]
-    public string Type { get; set; }
-
-    /// <summary>
-    /// Text output (if type is "logs")
-    /// </summary>
-    [JsonPropertyName("logs")]
-    public string Logs { get; set; }
-
-    /// <summary>
-    /// Image output (if type is "image")
-    /// </summary>
-    [JsonPropertyName("image")]
-    public ImageOutput Image { get; set; }
-}
-
-/// <summary>
 /// Class representing image output
 /// </summary>
 public class ImageOutput : BaseModel

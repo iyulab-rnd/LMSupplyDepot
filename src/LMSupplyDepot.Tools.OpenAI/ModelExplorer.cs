@@ -3,7 +3,7 @@
 /// <summary>
 /// Provides information about OpenAI models and features
 /// </summary>
-public class ModelExplorer
+public partial class ModelExplorer
 {
     private readonly OpenAIClient _client;
 

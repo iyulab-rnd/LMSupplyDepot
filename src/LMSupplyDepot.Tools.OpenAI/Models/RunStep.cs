@@ -38,8 +38,8 @@ public class RunStep : OpenAIResource
     /// <summary>
     /// Get the step details
     /// </summary>
-    public object GetStepDetails()
+    public RunStepDetails GetStepDetails()
     {
-        return GetValue<object>("step_details");
+        return GetValue<RunStepDetails>("step_details");
     }
 }

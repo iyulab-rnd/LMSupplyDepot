@@ -6,83 +6,29 @@
 public static class AssistantHelpers
 {
     /// <summary>
-    /// Creates a simple text dictionary for tool resources
+    /// Creates tool resources for code interpreter
     /// </summary>
-    public static Dictionary<string, object> CreateToolResources(string type, List<string> fileIds)
+    public static ToolResources CreateCodeInterpreterToolResources(List<string> fileIds)
     {
-        var toolResources = new Dictionary<string, object>();
-
-        if (fileIds != null && fileIds.Count > 0)
-        {
-            toolResources[type] = new Dictionary<string, object>
-            {
-                { "file_ids", fileIds }
-            };
-        }
-
-        return toolResources;
-    }
-
-    /// <summary>
-    /// Creates code interpreter tool resources
-    /// </summary>
-    public static Dictionary<string, object> CreateCodeInterpreterToolResources(List<string> fileIds)
-    {
-        return CreateToolResources(ToolTypes.CodeInterpreter, fileIds);
+        return ToolResources.CreateForCodeInterpreter(fileIds);
     }
 
     /// <summary>
     /// Creates file search tool resources with vector store IDs
     /// </summary>
-    public static Dictionary<string, object> CreateFileSearchToolResources(List<string> vectorStoreIds)
+    public static ToolResources CreateFileSearchToolResources(List<string> vectorStoreIds)
     {
-        var toolResources = new Dictionary<string, object>();
-
-        if (vectorStoreIds != null && vectorStoreIds.Count > 0)
-        {
-            toolResources[ToolTypes.FileSearch] = new Dictionary<string, object>
-            {
-                { "vector_store_ids", vectorStoreIds }
-            };
-        }
-
-        return toolResources;
+        return ToolResources.CreateForFileSearch(vectorStoreIds);
     }
 
     /// <summary>
     /// Creates combined tool resources for multiple tool types
     /// </summary>
-    public static Dictionary<string, object> CreateCombinedToolResources(
+    public static ToolResources CreateCombinedToolResources(
         List<string> fileSearchVectorStoreIds = null,
-        List<string> fileSearchFileIds = null,
         List<string> codeInterpreterFileIds = null)
     {
-        var toolResources = new Dictionary<string, object>();
-
-        if (fileSearchVectorStoreIds != null && fileSearchVectorStoreIds.Count > 0)
-        {
-            toolResources[ToolTypes.FileSearch] = new Dictionary<string, object>
-            {
-                { "vector_store_ids", fileSearchVectorStoreIds }
-            };
-        }
-        else if (fileSearchFileIds != null && fileSearchFileIds.Count > 0)
-        {
-            toolResources[ToolTypes.FileSearch] = new Dictionary<string, object>
-            {
-                { "file_ids", fileSearchFileIds }
-            };
-        }
-
-        if (codeInterpreterFileIds != null && codeInterpreterFileIds.Count > 0)
-        {
-            toolResources[ToolTypes.CodeInterpreter] = new Dictionary<string, object>
-            {
-                { "file_ids", codeInterpreterFileIds }
-            };
-        }
-
-        return toolResources;
+        return ToolResources.CreateCombined(fileSearchVectorStoreIds, codeInterpreterFileIds);
     }
 
     /// <summary>
@@ -106,36 +52,36 @@ public static class AssistantHelpers
     /// <summary>
     /// Extracts file objects from a message
     /// </summary>
-    public static List<object> GetMessageFiles(Message message)
+    public static List<ImageFileContent> GetMessageImageFiles(Message message)
     {
         if (message?.Content == null || message.Content.Count == 0)
         {
-            return new List<object>();
+            return new List<ImageFileContent>();
         }
 
         return message.Content
             .FindAll(c => c.Type == "image_file")
-            .ConvertAll(c => c.ImageFile!)
-            .FindAll(file => file != null)
-            .ConvertAll(f => (object)f);
+            .ConvertAll(c => c.ImageFile)
+            .Where(file => file != null)
+            .ToList();
     }
 
     /// <summary>
     /// Creates an expiration policy object
     /// </summary>
-    public static Dictionary<string, object> CreateExpirationPolicy(string anchor, int days)
+    public static ExpirationPolicy CreateExpirationPolicy(string anchor, int days)
     {
-        return new Dictionary<string, object>
+        return new ExpirationPolicy
         {
-            { "anchor", anchor },
-            { "days", days }
+            Anchor = anchor,
+            Days = days
         };
     }
 
     /// <summary>
     /// Creates a last active expiration policy object
     /// </summary>
-    public static Dictionary<string, object> CreateLastActiveExpirationPolicy(int days)
+    public static ExpirationPolicy CreateLastActiveExpirationPolicy(int days)
     {
         return CreateExpirationPolicy("last_active_at", days);
     }

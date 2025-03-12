@@ -3,9 +3,9 @@
 namespace LMSupplyDepot.Tools.OpenAI;
 
 /// <summary>
-/// Client for interacting with the OpenAI Assistants API - Files functionality
+/// Client for interacting with the OpenAI API - File operations
 /// </summary>
-public partial class OpenAIAssistantsClient
+public partial class OpenAIClient
 {
     #region Files
 

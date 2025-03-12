@@ -32,9 +32,9 @@ public class Run : AsyncOperationResource
     /// <summary>
     /// Get the required action for this run
     /// </summary>
-    public object GetRequiredAction()
+    public RequiredAction GetRequiredAction()
     {
-        return GetValue<object>(PropertyNames.RequiredAction);
+        return GetValue<RequiredAction>(PropertyNames.RequiredAction);
     }
 
     /// <summary>
