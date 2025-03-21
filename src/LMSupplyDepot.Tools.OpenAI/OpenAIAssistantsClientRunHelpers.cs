@@ -55,14 +55,6 @@ public partial class OpenAIAssistantsClient
     /// <summary>
     /// Handles function tool calls for a run automatically
     /// </summary>
-    /// <param name="threadId">The thread ID</param>
-    /// <param name="run">The run that requires tool outputs</param>
-    /// <param name="functionHandlers">Dictionary mapping function names to handlers</param>
-    /// <param name="continuePolling">Whether to continue polling for completion after submitting outputs</param>
-    /// <param name="pollIntervalMs">Polling interval in milliseconds</param>
-    /// <param name="maxAttempts">Maximum number of polling attempts (0 for unlimited)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>The updated run</returns>
     public async Task<Run> HandleFunctionToolCallsAsync(
         string threadId,
         Run run,
