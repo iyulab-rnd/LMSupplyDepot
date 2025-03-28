@@ -12,18 +12,22 @@ public abstract class OpenAIBaseClient
     protected const string ApiVersion = "v1";
     protected const string BaseUrl = "https://api.openai.com";
 
+    public bool NotSetApiKey { get; }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIBaseClient"/> class
     /// </summary>
     protected OpenAIBaseClient(string apiKey, HttpClient? httpClient = null)
     {
+        _httpClient = httpClient ?? new HttpClient();
         if (string.IsNullOrEmpty(apiKey))
         {
-            throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty");
+            this.NotSetApiKey = true;
         }
-
-        _httpClient = httpClient ?? new HttpClient();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        else
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
 
         _jsonOptions = new JsonSerializerOptions
         {
