@@ -13,6 +13,32 @@ public partial class OpenAIClient : OpenAIBaseClient
     {
     }
 
+    /// <summary>
+    /// Checks if the API key is valid by making a lightweight request to the API
+    /// </summary>
+    /// <returns>True if the API key is valid, false otherwise</returns>
+    public async Task<bool> IsApiKeyValidAsync()
+    {
+        try
+        {
+            // Make a HEAD request to the models endpoint as a lightweight way to check API key validity
+            var url = $"{BaseUrl}/{ApiVersion}/models";
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Head, url);
+
+            // Send the request and check the response status code
+            using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead);
+
+            // If we get a 200 OK response, the API key is valid
+            // If we get a 401 Unauthorized, the API key is invalid
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception)
+        {
+            // If any exception occurs during the request, consider the API key invalid
+            return false;
+        }
+    }
+
     #region Models
 
     /// <summary>
