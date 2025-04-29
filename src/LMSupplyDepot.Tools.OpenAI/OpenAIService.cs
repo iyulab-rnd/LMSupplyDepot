@@ -8,46 +8,41 @@ namespace LMSupplyDepot.Tools.OpenAI;
 /// </summary>
 public class OpenAIService
 {
-    private readonly OpenAIClient _client;
-
     /// <summary>
     /// File operations API
     /// </summary>
-    public FileAPI File { get; }
+    public FileAPI File { get; private set; }
 
     /// <summary>
     /// Query operations API
     /// </summary>
-    public QueryAPI Query { get; }
+    public QueryAPI Query { get; private set; }
+
+    /// <summary>
+    /// Chat operations API
+    /// </summary>
+    public ChatAPI Chat { get; private set; }
 
     /// <summary>
     /// Vector store operations API
     /// </summary>
-    public VectorStoreAPI VectorStore { get; }
+    public VectorStoreAPI VectorStore { get; private set; }
 
-    /// <summary>
-    /// Initializes a new instance of the OpenAIService class
-    /// </summary>
-    /// <param name="apiKey">OpenAI API key</param>
-    /// <param name="model">Default model for queries (optional)</param>
-    public OpenAIService(string apiKey, string model = "gpt-4o-mini")
+    public OpenAIService(string apiKey, string queryModel = "gpt-4o-mini", string chatModel = "gpt-4o")
     {
-        _client = new OpenAIClient(apiKey);
-        File = new FileAPI(_client);
-        VectorStore = new VectorStoreAPI(_client);
-        Query = new QueryAPI(_client, model);
+        var client = new OpenAIClient(apiKey);
+
+        File = new FileAPI(client);
+        VectorStore = new VectorStoreAPI(client);
+        Query = new QueryAPI(client, queryModel);
+        Chat = new ChatAPI(client, chatModel);
     }
 
-    /// <summary>
-    /// Initializes a new instance of the OpenAIService class with an existing client
-    /// </summary>
-    /// <param name="client">OpenAI client instance</param>
-    /// <param name="model">Default model for queries (optional)</param>
-    public OpenAIService(OpenAIClient client, string model = "gpt-4o-mini")
+    public OpenAIService(OpenAIClient client, string queryModel = "gpt-4o-mini", string chatModel = "gpt-4o")
     {
-        _client = client;
-        File = new FileAPI(_client);
-        VectorStore = new VectorStoreAPI(_client);
-        Query = new QueryAPI(_client, model);
+        File = new FileAPI(client);
+        VectorStore = new VectorStoreAPI(client);
+        Query = new QueryAPI(client, queryModel);
+        Chat = new ChatAPI(client, chatModel);
     }
 }
