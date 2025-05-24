@@ -4,22 +4,22 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'hostapp_v*'  # hostapp_v0.1.0 등
+      - 'hostapp_v*'  # e.g., hostapp_v0.1.0
 
 jobs:
   build-and-release:
     runs-on: windows-latest
     
     steps:
-    - name: 🛒 Checkout code
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 🔧 Setup .NET
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
         
-    - name: 🔍 Debug project structure
+    - name: Debug project structure
       run: |
         echo "Current directory contents:"
         Get-ChildItem -Path . -Recurse -Name "*.csproj" | Where-Object { $_ -like "*HostApp*" }
@@ -27,16 +27,16 @@ jobs:
         Get-ChildItem -Path "src/" -Recurse -Name "*.csproj" | Where-Object { $_ -like "*HostApp*" }
       shell: powershell
         
-    - name: 📦 Restore dependencies
+    - name: Restore dependencies
       run: dotnet restore src/
       
-    - name: 🔨 Build and Publish
+    - name: Build and Publish
       run: |
         dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
           -c Release `
           -o output/host-app
     
-    - name: 📋 Get version from tag
+    - name: Get version from tag
       id: version
       run: |
         $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
@@ -52,61 +52,67 @@ jobs:
         echo "Version: $version, Tag: $tag"
       shell: powershell
       
-    - name: 📦 Create ZIP archive
+    - name: Create ZIP archive
       id: zip
       run: |
         $version = "${{ steps.version.outputs.VERSION }}"
         $zipFile = "LMSupplyDepots.HostApp-v$version-win-x64.zip"
         Compress-Archive -Path "output/host-app/*" -DestinationPath $zipFile -Force
         echo "ZIP_FILE=$zipFile" >> $env:GITHUB_OUTPUT
+        echo "Created ZIP: $zipFile"
       shell: powershell
       
-    - name: 📄 Generate Release Notes
+    - name: Generate Release Notes
       id: notes
       run: |
         $version = "${{ steps.version.outputs.VERSION }}"
         $notes = @"
-        ## 🎉 LMSupplyDepots HostApp v$version
+        ## LMSupplyDepots HostApp v$version
         
-        ### 📦 다운로드
+        ### Download
         - **Windows x64**: LMSupplyDepots.HostApp-v$version-win-x64.zip
         
-        ### 🚀 설치 방법
-        1. ZIP 파일을 다운로드하고 압축을 해제합니다
-        2. \`LMSupplyDepots.HostApp.exe\`를 실행합니다
+        ### Installation Instructions
+        1. Download and extract the ZIP file
+        2. Run ``LMSupplyDepots.HostApp.exe``
         
-        ### 🔧 시스템 요구사항
-        - Windows 10/11 (x64)
-        - .NET 9.0 Runtime 필요
+        ### System Requirements
+        - Windows 10/11 (x64 architecture)
+        - .NET 9.0 Runtime required
         
-        ### 📋 이번 릴리스의 변경사항
-        - 자동 생성된 릴리스입니다
-        - 최신 코드 변경사항이 포함되어 있습니다
+        ### What's New
+        - Latest code changes and improvements
+        - Bug fixes and stability enhancements
+        - Performance optimizations
+        
+        ### Support
+        If you encounter any issues, please create an issue in this repository.
         "@
         
-        $notes | Out-File -FilePath release_notes.txt -Encoding utf8
+        # Write to file with proper encoding
+        [System.IO.File]::WriteAllText("release_notes.txt", $notes, [System.Text.UTF8Encoding]::new($false))
+        
+        # Set output for GitHub Actions
         echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_OUTPUT
-        Get-Content release_notes.txt | ForEach-Object { echo $_ >> $env:GITHUB_OUTPUT }
+        Get-Content -Path release_notes.txt -Raw | ForEach-Object { $_ -split "`n" } | ForEach-Object { echo $_ >> $env:GITHUB_OUTPUT }
         echo "EOF" >> $env:GITHUB_OUTPUT
       shell: powershell
 
-    # 기존 릴리스가 있는지 확인하고 삭제 (선택사항)
-    - name: 🗑️ Delete existing release if exists
+    - name: Delete existing release if exists
       continue-on-error: true
       run: |
         $tag = "${{ steps.version.outputs.TAG }}"
         try {
-          gh release delete $tag --yes
-          echo "기존 릴리스 $tag 삭제됨"
+          gh release delete $tag --yes --cleanup-tag
+          echo "Deleted existing release: $tag"
         } catch {
-          echo "기존 릴리스가 없거나 삭제 실패: $_"
+          echo "No existing release found or deletion failed (this is normal for new releases)"
         }
       shell: powershell
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-    # 최신 actions 사용
-    - name: 🎯 Create GitHub Release
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.TAG }}
@@ -115,10 +121,14 @@ jobs:
         files: ${{ steps.zip.outputs.ZIP_FILE }}
         draft: false
         prerelease: false
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: 🎊 Success Notification
+    - name: Success notification
       run: |
-        echo "🎉 Release v${{ steps.version.outputs.VERSION }} 배포 완료!"
-        echo "🔗 릴리스 페이지에서 확인하세요: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.TAG }}"
+        echo "========================================="
+        echo "Release v${{ steps.version.outputs.VERSION }} created successfully!"
+        echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.TAG }}"
+        echo "ZIP File: ${{ steps.zip.outputs.ZIP_FILE }}"
+        echo "========================================="
