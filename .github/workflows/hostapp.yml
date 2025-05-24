@@ -34,8 +34,8 @@ jobs:
       run: |
         dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
           -c Release `
-          -o output/host-app `
-          --self-contained true
+          -o output/host-app
+#          --self-contained true
 #          -r win-x64 `
 #          /p:PublishSingleFile=true `
 #          /p:IncludeNativeLibrariesForSelfExtract=true
