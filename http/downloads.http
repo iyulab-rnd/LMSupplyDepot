@@ -1,0 +1,35 @@
+### Variables
+@baseUrl = https://localhost:7212
+@apiBase = {{baseUrl}}/api
+
+### Get all active downloads
+GET {{apiBase}}/downloads
+Accept: application/json
+
+### Get download status for a specific model
+GET {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M/status
+Accept: application/json
+
+### Start downloading a model
+POST {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M
+Accept: application/json
+
+### Pause download
+POST {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M/pause
+Accept: application/json
+
+### Resume download
+POST {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M/resume
+Accept: application/json
+
+### Cancel download
+POST {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M/cancel
+Accept: application/json
+
+### Get model info without downloading
+GET {{apiBase}}/downloads/hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-IQ3_M/info
+Accept: application/json
+
+### Get repository info
+GET {{apiBase}}/downloads/repository/bartowski/Llama-3.2-3B-Instruct-GGUF
+Accept: application/json

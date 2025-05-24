@@ -1,0 +1,31 @@
+### Variables
+@baseUrl = https://localhost:7212
+@apiBase = {{baseUrl}}/api
+
+### Load a model
+# Note: The API doesn't have a direct endpoint for loading, it's done implicitly through generation requests
+# This is a direct generation request which will load the model if not already loaded
+POST {{apiBase}}/generate
+Content-Type: application/json
+{
+  "modelId": "llama-3-8b",
+  "prompt": "Hello, world!",
+  "maxTokens": 10
+}
+
+### Unload a model
+# Note: The API doesn't have a direct endpoint for unloading in the controllers provided
+# This could be added to the ModelController as a custom extension
+# This is a placeholder for what it might look like:
+POST {{apiBase}}/models/unload
+Content-Type: application/json
+{
+  "name": "llama-3-8b"
+}
+
+### Get loaded models
+# Note: The API doesn't have a direct endpoint for listing loaded models in the provided controllers
+# This could be added to the ModelController as a custom extension
+# This is a placeholder for what it might look like:
+GET {{apiBase}}/models/loaded
+Accept: application/json

@@ -1,0 +1,49 @@
+### Variables
+@baseUrl = https://localhost:7212
+@v1Base = {{baseUrl}}/v1
+
+### List loaded models
+GET {{v1Base}}/models
+Accept: application/json
+
+### Generate text
+POST {{v1Base}}/chat/completions
+Content-Type: application/json
+
+{
+  "model": "llama-3-8b",
+  "prompt": "Write a short poem about artificial intelligence.",
+  "maxTokens": 500,
+  "temperature": 0.7,
+  "topP": 0.95,
+  "parameters": {
+    "repetition_penalty": 1.1
+  }
+}
+
+### Generate text with stream
+POST {{v1Base}}/chat/completions/stream?modelId=llama-3-8b
+Content-Type: application/json
+
+{
+  "prompt": "Write a short story about a robot who discovers emotions.",
+  "maxTokens": 1000,
+  "temperature": 0.8,
+  "topP": 0.95,
+  "parameters": {
+    "repetition_penalty": 1.1
+  }
+}
+
+### Generate embeddings
+POST {{v1Base}}/embeddings?modelId=all-MiniLM-L6-v2
+Content-Type: application/json
+
+{
+  "texts": [
+    "This is the first sentence to embed.",
+    "This is the second, somewhat longer sentence for embedding.",
+    "A third, completely different sentence about artificial intelligence."
+  ],
+  "normalize": true
+}

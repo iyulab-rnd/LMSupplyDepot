@@ -363,3 +363,11 @@ MigrationBackup/
 FodyWeavers.xsd
 /src/LMSupplyDepot.Tools.OpenAI.SampleConsoleApp/appsettings.json
 /src/LMSupplyDepot.Tools.OpenAI.SampleConsoleApp/secrets.json
+/FOR_AI.txt
+/src/LMSupplyDepots.External.HuggingFace/DATA.md
+/src/BUILD.md
+/BUILD.md
+
+output/
+/src/LMSupplyDepots.External.OpenAI.SampleConsoleApp/secrets.json
+/src/LMSupplyDepots.External.OpenAI.SampleConsoleApp/secrets.json
