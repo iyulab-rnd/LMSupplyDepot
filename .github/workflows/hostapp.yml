@@ -4,7 +4,7 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'hostapp_v*'  # v1.0.0, v2.1.3 등의 태그가 푸시될 때 실행
+      - 'hostapp_v*'  # hostapp_v0.1.0 등
 
 jobs:
   build-and-release:
@@ -20,7 +20,7 @@ jobs:
         dotnet-version: '9.0.x'
         
     - name: 📦 Restore dependencies
-      run: dotnet restore
+      run: dotnet restore src/
       
     - name: 🔨 Build and Publish
       run: |
@@ -35,9 +35,149 @@ jobs:
     - name: 📋 Get version from tag
       id: get_version
       run: |
-        $version = $env:GITHUB_REF -replace 'refs/tags/v', ''
+        $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
+        if ($tag -match '^hostapp_v(.+)
+      
+    - name: 📦 Create ZIP archive
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $zipFile = "LMSupplyDepots.HostApp-v$version-win-x64.zip"
+        Compress-Archive -Path "output/host-app/*" -DestinationPath $zipFile -Force
+        echo "ZIP_FILE=$zipFile" >> $env:GITHUB_OUTPUT
+      shell: powershell
+      id: create_zip
+      
+    - name: 📄 Generate Release Notes
+      id: release_notes
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $notes = @"
+        ## 🎉 LMSupplyDepots HostApp v$version
+        
+        ### 📦 다운로드
+        - **Windows x64**: LMSupplyDepots.HostApp-v$version-win-x64.zip (Self-contained)
+        
+        ### 🚀 설치 방법
+        1. ZIP 파일을 다운로드하고 압축을 해제합니다
+        2. \`LMSupplyDepots.HostApp.exe\`를 실행합니다
+        
+        ### 🔧 시스템 요구사항
+        - Windows 10/11 (x64)
+        - .NET Runtime 설치 불필요 (자체 포함 배포)
+        
+        ### 📋 이번 릴리스의 변경사항
+        - 자동 생성된 릴리스입니다
+        - 최신 코드 변경사항이 포함되어 있습니다
+        "@
+        
+        # 멀티라인 출력을 위한 처리
+        $notes | Out-File -FilePath release_notes.txt -Encoding utf8
+        echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_OUTPUT
+        Get-Content release_notes.txt | ForEach-Object { echo $_ >> $env:GITHUB_OUTPUT }
+        echo "EOF" >> $env:GITHUB_OUTPUT
+      shell: powershell
+      
+    - name: 🎯 Create GitHub Release
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.TAG }}
+        release_name: LMSupplyDepots HostApp v${{ steps.get_version.outputs.VERSION }}
+        body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+        draft: false
+        prerelease: false
+        
+    - name: 📤 Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./${{ steps.create_zip.outputs.ZIP_FILE }}
+        asset_name: ${{ steps.create_zip.outputs.ZIP_FILE }}
+        asset_content_type: application/zip
+        
+    - name: 🎊 Success Notification
+      run: |
+        echo "🎉 Release v${{ steps.get_version.outputs.VERSION }} 배포 완료!"
+        echo "🔗 Release URL: ${{ steps.create_release.outputs.html_url }}") {
+          $version = $matches[1]
+        } elseif ($tag -match '^v(.+)
+      
+    - name: 📦 Create ZIP archive
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $zipFile = "LMSupplyDepots.HostApp-v$version-win-x64.zip"
+        Compress-Archive -Path "output/host-app/*" -DestinationPath $zipFile -Force
+        echo "ZIP_FILE=$zipFile" >> $env:GITHUB_OUTPUT
+      shell: powershell
+      id: create_zip
+      
+    - name: 📄 Generate Release Notes
+      id: release_notes
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $notes = @"
+        ## 🎉 LMSupplyDepots HostApp v$version
+        
+        ### 📦 다운로드
+        - **Windows x64**: LMSupplyDepots.HostApp-v$version-win-x64.zip (Self-contained)
+        
+        ### 🚀 설치 방법
+        1. ZIP 파일을 다운로드하고 압축을 해제합니다
+        2. \`LMSupplyDepots.HostApp.exe\`를 실행합니다
+        
+        ### 🔧 시스템 요구사항
+        - Windows 10/11 (x64)
+        - .NET Runtime 설치 불필요 (자체 포함 배포)
+        
+        ### 📋 이번 릴리스의 변경사항
+        - 자동 생성된 릴리스입니다
+        - 최신 코드 변경사항이 포함되어 있습니다
+        "@
+        
+        # 멀티라인 출력을 위한 처리
+        $notes | Out-File -FilePath release_notes.txt -Encoding utf8
+        echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_OUTPUT
+        Get-Content release_notes.txt | ForEach-Object { echo $_ >> $env:GITHUB_OUTPUT }
+        echo "EOF" >> $env:GITHUB_OUTPUT
+      shell: powershell
+      
+    - name: 🎯 Create GitHub Release
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: LMSupplyDepots HostApp v${{ steps.get_version.outputs.VERSION }}
+        body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+        draft: false
+        prerelease: false
+        
+    - name: 📤 Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./${{ steps.create_zip.outputs.ZIP_FILE }}
+        asset_name: ${{ steps.create_zip.outputs.ZIP_FILE }}
+        asset_content_type: application/zip
+        
+    - name: 🎊 Success Notification
+      run: |
+        echo "🎉 Release v${{ steps.get_version.outputs.VERSION }} 배포 완료!"
+        echo "🔗 Release URL: ${{ steps.create_release.outputs.html_url }}") {
+          $version = $matches[1]
+        } else {
+          $version = $tag
+        }
         echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-        echo "Version: $version"
+        echo "TAG=$tag" >> $env:GITHUB_OUTPUT
+        echo "Version: $version, Tag: $tag"
       shell: powershell
       
     - name: 📦 Create ZIP archive
