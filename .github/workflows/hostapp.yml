@@ -19,26 +19,57 @@ jobs:
       with:
         dotnet-version: '9.0.x'
         
-    - name: 🔍 Debug project structure
+    - name: 🔍 Debug workspace structure
       run: |
-        echo "Current directory contents:"
-        Get-ChildItem -Path . -Recurse -Name "*.csproj" | Where-Object { $_ -like "*HostApp*" }
-        echo "Checking src directory:"
-        Get-ChildItem -Path "src/" -Recurse -Name "*.csproj" | Where-Object { $_ -like "*HostApp*" }
+        echo "=== Current working directory ==="
+        pwd
+        echo ""
+        echo "=== Root directory contents ==="
+        Get-ChildItem -Name
+        echo ""
+        echo "=== Looking for .csproj files ==="
+        Get-ChildItem -Recurse -Name "*.csproj"
+        echo ""
+        echo "=== Checking if src exists ==="
+        Test-Path "src"
+        echo ""
+        echo "=== Checking HostApp specifically ==="
+        Test-Path "src/LMSupplyDepots.HostApp"
+        Test-Path "src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj"
+        echo ""
+        echo "=== All directories in src ==="
+        if (Test-Path "src") {
+          Get-ChildItem "src" -Directory -Name
+        }
       shell: powershell
         
     - name: 📦 Restore dependencies
       run: dotnet restore src/
       
-    - name: 🔨 Build and Publish
+    - name: 🔨 Build and Publish (Alternative approach)
       run: |
-        dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
-          -c Release `
-          -o output/host-app `
-          --self-contained true `
-          -r win-x64 `
-          /p:PublishSingleFile=true `
-          /p:IncludeNativeLibrariesForSelfExtract=true
+        # 솔루션 파일을 통해 빌드하는 방법
+        if (Test-Path "src/LMSupplyDepots.sln") {
+          echo "Using solution file approach"
+          dotnet publish src/LMSupplyDepots.sln `
+            --project src/LMSupplyDepots.HostApp `
+            -c Release `
+            -o output/host-app `
+            --self-contained true `
+            -r win-x64 `
+            /p:PublishSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true
+        } else {
+          echo "Trying direct project path"
+          dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
+            -c Release `
+            -o output/host-app `
+            --self-contained true `
+            -r win-x64 `
+            /p:PublishSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true
+        }
+      shell: powershell
     
     - name: 📋 Get version from tag
       id: version
