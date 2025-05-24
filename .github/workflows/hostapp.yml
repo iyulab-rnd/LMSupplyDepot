@@ -35,10 +35,10 @@ jobs:
         dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
           -c Release `
           -o output/host-app `
-          --self-contained true `
-          -r win-x64 `
-          /p:PublishSingleFile=true `
-          /p:IncludeNativeLibrariesForSelfExtract=true
+          --self-contained true
+#          -r win-x64 `
+#          /p:PublishSingleFile=true `
+#          /p:IncludeNativeLibrariesForSelfExtract=true
     
     - name: 📋 Get version from tag
       id: version
