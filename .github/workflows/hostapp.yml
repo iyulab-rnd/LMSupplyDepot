@@ -35,10 +35,6 @@ jobs:
         dotnet publish src/LMSupplyDepots.HostApp/LMSupplyDepots.HostApp.csproj `
           -c Release `
           -o output/host-app
-#          --self-contained true
-#          -r win-x64 `
-#          /p:PublishSingleFile=true `
-#          /p:IncludeNativeLibrariesForSelfExtract=true
     
     - name: 📋 Get version from tag
       id: version
@@ -73,7 +69,7 @@ jobs:
         ## 🎉 LMSupplyDepots HostApp v$version
         
         ### 📦 다운로드
-        - **Windows x64**: LMSupplyDepots.HostApp-v$version-win-x64.zip (Self-contained)
+        - **Windows x64**: LMSupplyDepots.HostApp-v$version-win-x64.zip
         
         ### 🚀 설치 방법
         1. ZIP 파일을 다운로드하고 압축을 해제합니다
@@ -81,43 +77,48 @@ jobs:
         
         ### 🔧 시스템 요구사항
         - Windows 10/11 (x64)
-        - .NET Runtime 설치 불필요 (자체 포함 배포)
+        - .NET 9.0 Runtime 필요
         
         ### 📋 이번 릴리스의 변경사항
         - 자동 생성된 릴리스입니다
         - 최신 코드 변경사항이 포함되어 있습니다
         "@
         
-        # 멀티라인 출력을 위한 처리
         $notes | Out-File -FilePath release_notes.txt -Encoding utf8
         echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_OUTPUT
         Get-Content release_notes.txt | ForEach-Object { echo $_ >> $env:GITHUB_OUTPUT }
         echo "EOF" >> $env:GITHUB_OUTPUT
       shell: powershell
-      
-    - name: 🎯 Create GitHub Release
-      uses: actions/create-release@v1
-      id: release
+
+    # 기존 릴리스가 있는지 확인하고 삭제 (선택사항)
+    - name: 🗑️ Delete existing release if exists
+      continue-on-error: true
+      run: |
+        $tag = "${{ steps.version.outputs.TAG }}"
+        try {
+          gh release delete $tag --yes
+          echo "기존 릴리스 $tag 삭제됨"
+        } catch {
+          echo "기존 릴리스가 없거나 삭제 실패: $_"
+        }
+      shell: powershell
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+    # 최신 actions 사용
+    - name: 🎯 Create GitHub Release
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.TAG }}
-        release_name: LMSupplyDepots HostApp v${{ steps.version.outputs.VERSION }}
+        name: LMSupplyDepots HostApp v${{ steps.version.outputs.VERSION }}
         body: ${{ steps.notes.outputs.RELEASE_NOTES }}
+        files: ${{ steps.zip.outputs.ZIP_FILE }}
         draft: false
         prerelease: false
-        
-    - name: 📤 Upload Release Asset
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.release.outputs.upload_url }}
-        asset_path: ./${{ steps.zip.outputs.ZIP_FILE }}
-        asset_name: ${{ steps.zip.outputs.ZIP_FILE }}
-        asset_content_type: application/zip
         
     - name: 🎊 Success Notification
       run: |
         echo "🎉 Release v${{ steps.version.outputs.VERSION }} 배포 완료!"
-        echo "🔗 Release URL: ${{ steps.release.outputs.html_url }}"
+        echo "🔗 릴리스 페이지에서 확인하세요: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.TAG }}"
